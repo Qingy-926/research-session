@@ -1,0 +1,92 @@
+{
+  "$id": "https://github.com/Qingy-926/research-session/contracts/run-manifest.v1.json",
+  "contract_version": "v1",
+  "title": "research-session run manifest (v1)",
+  "description": "Secret-free JSON manifest for one CLI run. status=gate_passed alone means a review gate passed; completed only means the process ended normally. error is already redacted.",
+  "type": "object",
+  "required": [
+    "schema",
+    "run_id",
+    "created_at",
+    "host",
+    "component_versions",
+    "config_sha256",
+    "status",
+    "duration_seconds",
+    "artifacts",
+    "references",
+    "error"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": ["research-session/run-manifest/v1"]
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Fresh uuid4 hex for this run; the file is written as <run_id>.json and never overwritten."
+    },
+    "created_at": {
+      "type": "string",
+      "description": "UTC ISO-8601 timestamp of manifest creation."
+    },
+    "host": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      },
+      "description": "From RESEARCH_SESSION_HOST / RESEARCH_SESSION_HOST_VERSION; unknown when unset."
+    },
+    "component_versions": {
+      "type": "object",
+      "additionalProperties": {"type": "string"},
+      "description": "Plugin version from .codex-plugin/plugin.json plus the running Python version."
+    },
+    "config_sha256": {
+      "type": ["string", "null"],
+      "description": "SHA-256 of canonical {url, model, provider}; null when no route was bound. Never covers api_key_env or credentials."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["gate_passed", "completed", "stopped", "no_result"],
+      "description": "gate_passed: the CLI reported a passed review gate; completed: exit 0 without any gate claim (dry-run or read-only); stopped: non-zero exit; no_result: exit 0 without a JSON result."
+    },
+    "duration_seconds": {
+      "type": "number"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string"}
+        }
+      },
+      "description": "Files actually produced by this run (for example a review receipt)."
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string"}
+        }
+      },
+      "description": "Bound input files recorded by the run's binding."
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Redacted failure text; null when the run reported no error."
+    }
+  }
+}

@@ -1,0 +1,30 @@
+# Repository rules reviewed 2026-11-20; every pattern below has an inline reason.
+
+# Python bytecode caches are regenerated locally and never belong to a release.
+__pycache__/
+*.py[cod]
+
+# pytest cache holds local run state, not source.
+.pytest_cache/
+
+# Virtual environments contain machine-specific binaries and paths.
+.venv/
+venv/
+env/
+
+# Local run logs may contain machine paths and run state; archived evidence stays outside this repository.
+*.log
+
+# A user's filled-in provider config holds endpoints/models and must never be committed.
+provider-config.local.json
+
+# Run manifests are local observability output, not source.
+.research-session-runs/
+
+# OS metadata files.
+.DS_Store
+Thumbs.db
+
+# Release zips are reproducible outputs of tools/package_release.py; rebuild them per
+# release instead of committing build artifacts.
+dist/

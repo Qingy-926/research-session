@@ -1,0 +1,27 @@
+{
+  "$id": "https://github.com/Qingy-926/research-session/contracts/provider-adapter.v1.json",
+  "contract_version": "v1",
+  "title": "research-session provider adapter input (v1)",
+  "description": "Keys accepted by audit_dispatch._provider_config. api_key_env names an environment variable only; it never contains a secret value.",
+  "type": "object",
+  "required": [],
+  "additionalProperties": false,
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "Explicit http(s) Responses endpoint ending in /responses, without credentials, query or fragment."
+    },
+    "model": {
+      "type": "string",
+      "description": "Wire model requested for review; no implicit default."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Provider label recorded in the route binding; defaults to responses when omitted."
+    },
+    "api_key_env": {
+      "type": "string",
+      "description": "Name of the environment variable holding the credential; never the credential itself."
+    }
+  }
+}

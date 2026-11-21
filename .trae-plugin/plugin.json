@@ -1,0 +1,31 @@
+{
+  "name": "research-session",
+  "version": "5.2.0",
+  "description": "Research paper reading, research judgment, experiment governance and paper reproduction.",
+  "author": {
+    "name": "Qingy",
+    "url": "https://github.com/Qingy-926"
+  },
+  "homepage": "https://github.com/Qingy-926/research-session",
+  "repository": "https://github.com/Qingy-926/research-session",
+  "license": "Apache-2.0",
+  "keywords": [
+    "research",
+    "paper-reading",
+    "reproducibility",
+    "peer-review"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Research Session",
+    "logo": "./assets/research-session-icon.png",
+    "composerIcon": "./assets/research-session-icon.png",
+    "shortDescription": "Paper reading, research judgment, experiment governance and reproduction audits",
+    "longDescription": "Choose workflows for paper reading, research judgment, reproduction and research projects while respecting evidence and authorization boundaries.",
+    "developerName": "Qingy-926",
+    "websiteURL": "https://github.com/Qingy-926/research-session",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Confirm the research task and existing evidence first, then choose a workflow and state conclusions with uncertainty. 先确认研究任务与现有证据，再选择技能并说明结论与不确定性。"
+  }
+}

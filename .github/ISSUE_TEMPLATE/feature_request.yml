@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a scoped improvement to a skill, contract, CLI, or document
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep proposals scoped. Explain the research workflow problem first; this project does
+        not add features for "full coverage" alone, and does not weaken review gates for
+        convenience.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which research task is blocked or ambiguous today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Skill, script, contract field, or document. Note whether it changes the rules digest.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Evidence and boundaries
+      description: What evidence would prove it works offline? Which host/external dependency remains?
+    validations:
+      required: true
+  - type: dropdown
+    id: gated
+    attributes:
+      label: Does this touch review gates, evidence binding, or contracts?
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true

@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible defect in research-session (offline behavior, CLI, contracts, or documentation)
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not paste API keys, private project paths, ledger contents,
+        or real research data. This repository is a 5.0.0 candidate and is not published yet;
+        reports are reviewed locally.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Plugin version and host (Trae or Codex), plus OS and Python version.
+      placeholder: "5.0.0 / Trae / Windows 11 / Python 3.13.5"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or skill invocations. Use synthetic data only.
+      placeholder: |
+        1. Run `python skills/research-session/scripts/audit_dispatch.py --probe`
+        2. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the JSON line or exit code if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Additional context
+      description: Whether a provider was configured (yes/no), and whether the case is offline.
+    validations:
+      required: false

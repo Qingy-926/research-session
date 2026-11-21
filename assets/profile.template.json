@@ -1,0 +1,12 @@
+{
+  "schema": "rigorous-paper-reproduction/v1",
+  "project_root": ".",
+  "paper": {"title": "", "evidence_file": "04-验证/paper-evidence.json", "required_items": []},
+  "code": {"canonical_commit": "", "require_clean_git": true, "required_files": []},
+  "data": {"required_files": [], "excluded_subjects": []},
+  "protocol": {"id": "", "stage": "development", "file": "", "sha256": "", "methods": [], "random_axes": {}, "assignment_axes": {}, "required_roles": [], "excluded_subjects": [], "dataset_hash": "", "metric_definitions": {}, "gates": []},
+  "tests": {"evidence_file": "04-验证/test-evidence.json", "required_exit_code": 0},
+  "resources": {"minimum_free_gb": null},
+  "matrix_file": "04-验证/run-matrix.json",
+  "metrics_file": "04-验证/metric-rows.json"
+}

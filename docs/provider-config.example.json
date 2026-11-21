@@ -1,0 +1,6 @@
+{
+  "url": "https://provider.example/v1/responses",
+  "model": "your-review-model",
+  "provider": "your-provider",
+  "api_key_env": "RESEARCH_SESSION_API_KEY"
+}
