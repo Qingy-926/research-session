@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 import test_review_closure as closure
 
@@ -125,6 +126,105 @@ class TaskReviewTest(unittest.TestCase):
             self.assertNotEqual(run.returncode, 0, key)
             self.assertEqual(len(closure.Proxy.requests), before, key)
             approval.write_text(json.dumps(original), encoding="utf-8")
+
+    def test_renewed_task_continues_to_round_four_and_keeps_cross_point_budget(self):
+        approval = self.approval(mode="unattended", max_requests=4, points=[1, 2])
+        self.update_manifest(extra=self.approval_files)
+        options = ("--task-approval", str(approval), "--timeout", "5")
+        self.adverse()
+        run, current = self.invoke(self.pack(), extra=options)
+        self.assertEqual(run.returncode, 3, run.stdout + run.stderr)
+        for index in (1, 2):
+            self.progress(index)
+            self.adverse(previous=True)
+            run, current = self.invoke(self.pack(f"prior-{index}.md"), current["receipt"], extra=options)
+            self.assertEqual(run.returncode, 3, run.stdout + run.stderr)
+        self.assertEqual(current["round"], 3)
+        original_bytes = approval.read_bytes()
+        original_receipt = self.directory / "prior-2.md.review.json"
+        receipt_bytes = original_receipt.read_bytes()
+        old = json.loads(original_bytes)
+        now = dt.datetime.now(dt.timezone.utc)
+        decision = self.project / "renewal.md"
+        decision.write_text("Approved: continue the same fixture with its cumulative budget.", encoding="utf-8")
+        renewed = self.project / "renewal.json"
+        new = dict(old, deadline=(now + dt.timedelta(hours=2)).isoformat(),
+                   approval_source={"path": str(decision), "sha256": hashlib.sha256(decision.read_bytes()).hexdigest()},
+                   continuation={
+                       "previous": {"path": str(approval), "sha256": hashlib.sha256(original_bytes).hexdigest()},
+                       "effective_at": now.isoformat(),
+                   })
+        renewed.write_text(json.dumps(new), encoding="utf-8")
+        self.approval_files.extend([renewed, decision])
+        self.progress(3)
+        options = ("--task-approval", str(renewed), "--timeout", "5")
+        for key, change in (
+            ("started_at", now.isoformat()),
+            ("max_requests", 5),
+            ("points", [1, 2, 3]),
+            ("revoked", True),
+            ("continuation", dict(new["continuation"], effective_at=(now + dt.timedelta(hours=1)).isoformat())),
+            ("continuation", dict(new["continuation"], previous={"path": str(approval), "sha256": "0" * 64})),
+        ):
+            renewed.write_text(json.dumps(dict(new, **{key: change})), encoding="utf-8")
+            self.progress(3)
+            run, _ = self.invoke(self.pack(f"reject-{self.check_serial}.md"), str(original_receipt), extra=options)
+            self.assertEqual(run.returncode, 2, key)
+            self.assertEqual(len(closure.Proxy.requests), 3, key)
+        renewed.write_text(json.dumps(new), encoding="utf-8")
+        self.progress(3)
+        self.adverse(previous=True)
+        run, fourth = self.invoke(self.pack("renewed.md"), str(original_receipt), extra=options)
+        self.assertEqual(run.returncode, 3, run.stdout + run.stderr)
+        self.assertEqual((fourth["round"], fourth["cycle"]), (4, 1))
+        self.assertEqual(fourth["binding"]["review_id"], self.review_id)
+        self.assertEqual(original_receipt.read_bytes(), receipt_bytes)
+        self.assertEqual(approval.read_bytes(), original_bytes)
+        run, stopped = self.invoke(self.pack("result-point.md"), extra=(*options, "--point", "2"))
+        self.assertEqual(run.returncode, 2)
+        self.assertIn("task request budget exhausted", stopped["error"])
+        self.assertEqual(len(closure.Proxy.requests), 4)
+
+    def test_renewal_after_expiry_checks_receipts_in_their_own_windows(self):
+        sys.path.insert(0, str(closure.ROOT / "scripts"))
+        self.addCleanup(sys.path.remove, str(closure.ROOT / "scripts"))
+        import review_task
+
+        start = dt.datetime(2026, 11, 22, tzinfo=dt.timezone.utc)
+        old_path = self.approval(started_at=start.isoformat(),
+                                 deadline=(start + dt.timedelta(hours=2)).isoformat())
+        old = json.loads(old_path.read_bytes())
+        new_path = self.project / "new.json"
+        source = self.project / "new.md"
+        source.write_text("Approve this continuation after expiry.", encoding="utf-8")
+
+        def pin(path):
+            return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+        effective = start + dt.timedelta(hours=4)
+        new_path.write_text(json.dumps(dict(
+            old, approval_source=pin(source), deadline=(effective + dt.timedelta(hours=1)).isoformat(),
+            continuation={"previous": pin(old_path), "effective_at": effective.isoformat()},
+        )), encoding="utf-8")
+        binding = {"review_id": self.review_id, "point": 1,
+                   "files": [pin(path) for path in [*self.approval_files, new_path, source]]}
+        scope = {"project_id": old["project_id"]}
+
+        class Clock(dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return effective + dt.timedelta(minutes=1)
+
+        with patch.object(review_task.dt, "datetime", Clock):
+            with self.assertRaisesRegex(ValueError, "budget"):
+                review_task.validate(str(old_path), binding, scope, 5)
+            binding["task_approval"] = review_task.validate(str(new_path), binding, scope, 5)
+            prior = dict(binding=dict(task_approval=dict(
+                pin(old_path), task_id=old["task_id"], mode=old["mode"])))
+            chain = review_task.approval_chain(str(new_path), binding["files"])
+            review_task.validate_receipt(dict(prior, created_at=(start + dt.timedelta(hours=1)).isoformat()), chain)
+            with self.assertRaisesRegex(ValueError, "window"):
+                review_task.validate_receipt(dict(prior, created_at=(start + dt.timedelta(hours=3)).isoformat()), chain)
 
     def test_task_legacy_two_round_stop_continues_without_new_cycle(self):
         self.adverse()

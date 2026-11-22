@@ -78,7 +78,7 @@ def test_skill_inventory_matches_readme_capability_matrix():
 def test_manifests_and_skill_version_agree():
     manifests = {host: json.loads(read(path)) for host, path in MANIFESTS.items()}
     for host, manifest in manifests.items():
-        assert manifest["version"] == "6.3.0", host
+        assert manifest["version"] == "6.4.0", host
         assert manifest["license"] == "Apache-2.0", host
         assert manifest["repository"] == REPO_URL, host
     assert manifests["trae"] == manifests["codex"]

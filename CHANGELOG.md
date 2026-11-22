@@ -11,6 +11,12 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.4.0] - 2026-11-22
+
+- Allow an explicitly approved continuation of a task, including after expiry. Verify
+  linked approvals and historical receipt windows before sending, and retain the
+  original count start, cumulative request limit, review scope, and receipt chain.
+
 ## [6.3.0] - 2026-11-22
 
 - Replacement-style simplification: one home per rule. The three modes are defined once in

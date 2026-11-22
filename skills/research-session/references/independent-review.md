@@ -120,7 +120,9 @@ python "$RS_SKILL_ROOT/scripts/audit_dispatch.py" \
 }
 ```
 
-`mode` 也可为 `unattended`。`max_requests` 是本任务总请求额度；台账锁内累计 `started_at` 后全部 dispatcher 发送（意图、失败尝试、最终回执，含旧版显式截断重试），跨对象/点共用；仍有未知发送时停止。格式纠正、委派等其他通道须事先计入 `reserved_requests`。不得改 task_id、起点、时限或额度重置计数；单次 timeout 加收尾须容纳在剩余时间内。
+`mode` 也可为 `unattended`。`max_requests` 是本任务总请求额度；台账锁内累计 `started_at` 后全部 dispatcher 发送（意图、失败尝试、最终回执，含旧版显式截断重试），跨对象/点共用；仍有未知发送时停止。格式纠正、委派等其他通道须事先计入 `reserved_requests`。单次 timeout 加收尾须容纳在剩余时间内。
+
+用户再次明确批准时，用新文件保存续批并增加 `continuation: {"previous":{"path":"<上一批准绝对路径>","sha256":"<完整 SHA256>"},"effective_at":"<带时区的生效时间>"}`。只有批准来源、截止时间和续批链接可变，所有链接批准与各自的独立用户来源均须纳入当前 `files`。新版截止时间须晚于旧截止时间。历史回执以各自批准的生效时间至截止时间或被接续时间（取较早者）为有效窗口，新发送使用当前窗口。批准间隔不追溯生效，请求累计仍从最初的 `started_at` 算起。
 
 增量清单还须含 `remediation_progress:[{finding_id,path,verification}]`：上一回执当前 blocking ID、实际改变的受控原件或新增证据，以及本轮 `verifications` 中的成功机器记录；验证须在上一回执后实际执行，绑定改动原件、日志与前后 SHA；换包名、改批准或只生成日志不算进展。无新进展停止重复送审。发送锁、未知发送、原合同与科学硬门照旧；此入口不发起循环、不自动重试、不授予执行或后台能力，每次只发一次 HTTP。计量/时限失效、批准撤回、范围/协议变化或用户暂停即停。
 
