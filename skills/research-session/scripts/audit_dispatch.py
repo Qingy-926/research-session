@@ -894,7 +894,7 @@ def load_inputs(path):
     if "first_review" in data:
         validate_first_review_scope(data["first_review"], files)
         result["first_review"] = data["first_review"]
-    for key in ("timeline", "closures", "disputes", "verifications"):
+    for key in ("timeline", "closures", "disputes", "verifications", "remediation_progress"):
         if key in data:
             result[key] = data[key]
     if "verifications" in result:
@@ -914,6 +914,8 @@ def rules_binding(reference: str):
              os.path.join(root, "references", "autonomy-bounds.md"),
              os.path.join(root, "references", "review-evidence.md"), evidence_path,
              os.path.join(root, "scripts", "review_ledger.py")]
+    rules.append(os.path.join(root, "scripts", "review_format.py"))
+    rules.append(os.path.join(root, "scripts", "review_task.py"))
     # Guidance extracted from SKILL.md remains part of the trusted review rules.
     rules.extend(os.path.join(root, "references", name) for name in
                  ("project-work.md", "preregistration.md", "independent-review.md", "autonomous-start.md",
@@ -943,6 +945,10 @@ def make_binding(args: argparse.Namespace, model: str, body_sha: str):
     route = None if (getattr(args, "unattended_state", None) or getattr(args, "local_only", False)) else optional_responses_route(args, model)
     if route is not None:
         result["route"] = route
+    if getattr(args, "task_approval", None):
+        import review_task
+        scope = review_ledger.validate_scope(pack_path, result)
+        result["task_approval"] = review_task.validate(args.task_approval, result, scope, args.timeout)
     return result
 
 
@@ -966,10 +972,15 @@ def compatible_rules_transition(previous_hash, current_binding):
 
 def load_receipt(path, checklist_count, *, raw=None):
     data = json.loads(open_bytes(path) if raw is None else raw)
-    if not isinstance(data, dict) or data.get("schema") != "research-session/review/v1" or type(data.get("round")) is not int or data["round"] not in (0, 1, 2, 3):
+    if not isinstance(data, dict) or data.get("schema") != "research-session/review/v1" or type(data.get("round")) is not int or data["round"] < 0:
         raise ValueError("复核回执格式/轮次无效")
     unattended = data.get("unattended")
-    if ((data["round"] == 3 or "unattended" in data) and
+    task = data.get("binding", {}).get("task_approval")
+    if data["round"] > 2 and not unattended and (
+            not isinstance(task, dict) or task.get("mode") not in ("autonomous", "unattended")
+            or not all(isinstance(task.get(k), str) and task[k] for k in ("path", "sha256", "task_id"))):
+        raise ValueError("后续整改回执缺少任务批准绑定")
+    if ("unattended" in data and
         (not isinstance(unattended, dict) or set(unattended) != {"run_id", "action_id", "round"} or
          any(not isinstance(unattended[key], str) or not unattended[key] for key in ("run_id", "action_id")) or
          type(unattended["round"]) is not int or unattended["round"] not in (1, 2, 3) or
@@ -1096,6 +1107,56 @@ def read_saved_report(path, checklist_count):
     if start < 0:
         raise ValueError("旧包未找到结构化原始意见，不得从叙述补造裁决")
     return appended[start + 1:].strip()
+
+
+def normalized_format_report(report):
+    """Only unwrap an existing locator list, retaining every original locator."""
+    result = json.loads(json.dumps(report, ensure_ascii=False, allow_nan=False))
+    if not isinstance(result, dict) or result.get("decision") not in ("待整改", "不通过", "未完成"):
+        raise ValueError("format correction cannot create or recover a pass")
+    for finding in result.get("findings", []):
+        claim = finding.get("quantitative_claim") if isinstance(finding, dict) else None
+        if isinstance(claim, dict) and isinstance(claim.get("json_pointer"), list):
+            pointers = claim["json_pointer"]
+            if (not pointers or not all(isinstance(p, str) and (not p or p.startswith("/")) for p in pointers)
+                    or "json_pointer_context" in claim):
+                raise ValueError("locator list has no lossless representation")
+            claim["json_pointer_context"] = pointers
+            claim["json_pointer"] = pointers[0]
+    return result
+
+
+def validate_format_correction(original, candidate, checklist_count, first_review):
+    """A reviewer may correct coverage links/statuses, never scientific content."""
+    expected = normalized_format_report(original)
+    if not isinstance(candidate, dict):
+        raise ValueError("corrected report must be an object")
+    projection = json.loads(json.dumps(candidate, ensure_ascii=False, allow_nan=False))
+    for field in ("checklist", "claim_checks"):
+        if field not in expected:
+            if field in projection:
+                raise ValueError("format correction cannot introduce new claims")
+            continue
+        old_rows, new_rows = expected[field], projection.get(field)
+        if not isinstance(old_rows, list) or not isinstance(new_rows, list) or len(old_rows) != len(new_rows):
+            raise ValueError("format correction cannot add or drop coverage rows")
+        for old, new in zip(old_rows, new_rows):
+            if not isinstance(old, dict) or not isinstance(new, dict):
+                raise ValueError("invalid coverage row")
+            for key in ("status", "finding_ids"):
+                if key in old and key in new:
+                    new[key] = old[key]
+    if json.dumps(projection, sort_keys=True, allow_nan=False) != json.dumps(
+            expected, sort_keys=True, allow_nan=False):
+        raise ValueError("format correction changed immutable decision, findings or evidence")
+    return parse_review(json.dumps(candidate, ensure_ascii=False, allow_nan=False), checklist_count,
+                        first_review=first_review)
+
+
+def recover_corrected_baseline(path, receipt, checklist_count, correction_path):
+    import review_format
+    from types import SimpleNamespace
+    return review_format.recover(path, receipt, checklist_count, correction_path, SimpleNamespace(**globals()))
 
 
 def recover_format_baseline(path: str, receipt: dict[str, Any], checklist_count: int) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -1300,6 +1361,8 @@ def review_result(receipt, path, reused=False):
             disposition, action = "unattended_limit", "apply_bounded_repairs_validate_then_continue_independent_work_only"
         else:
             disposition, action = "unattended_revise", "verify_bounded_repairs_before_next_preapproved_round"
+    elif receipt.get("binding", {}).get("task_approval") and receipt.get("report") is not None:
+        disposition, action = "task_revise", "repair_verify_progress_then_continue_within_task_budget"
     elif receipt["round"] >= 2 and receipt.get("report") is not None:
         disposition, action = "needs_user_decision", "stop_dependent_steps_record_disagreement_no_third_round"
     elif not completed:
@@ -1427,8 +1490,10 @@ def _main(offline_transport=None):
     ap.add_argument("--inputs", help="受控文件 JSON 清单：review_id 与 files[{path,sha256}]")
     ap.add_argument("--previous", help="上一轮 .review.json；整改复核必填")
     ap.add_argument("--new-cycle", help="用户决定的新周期决定记录；须同时给 --previous 与派生 review_id")
+    ap.add_argument("--task-approval", help="自主/无人值守任务批准记录；同一ID累计整改，不开新周期")
     ap.add_argument("--recover-previous-format", action="store_true",
                     help="仅内存恢复已登记的旧首审对象包装格式失败；不修改原回执、不授予发送权限")
+    ap.add_argument("--corrected-previous", help="独立格式纠正侧件；显式绑定原始失败回执，不改旧判词或轮次")
     ap.add_argument("--dry-run", action="store_true", help="组装 prompt 但不发送")
     ap.add_argument("--lint-pack", action="store_true", help="只离线核对包内源码字节与验证记录；不送审、不放行")
     ap.add_argument("--validate-report", help="仅离线校验原始裁决 JSON 或历史 .review.json；不送审、不放行")
@@ -1455,6 +1520,11 @@ def _main(offline_transport=None):
     ap.add_argument("--confirm-independent-review", action="store_true", help="确认已核实独立审核原件和职责分离；不认证身份")
     ap.add_argument("--revoke-fixture", metavar="ENTRY_ID", help="追加撤销夹具纠错；须配 --ledger-note")
     args = ap.parse_args()
+    if args.task_approval and (args.new_cycle or args.unattended_state or args.unattended_action
+            or args.retry_truncated_tokens is not None or args.recovery_template
+            or args.recover_send_lock or args.revoke_send_recovery or args.resolve_fixture
+            or args.revoke_fixture or args.fixture_template or args.ledger_backfill or args.resolve_ledger):
+        emit({"ok": False, "stage": "args", "error": "task continuation cannot mix maintenance, fixture, new-cycle or retry operations"}, 2)
     if args.verify_local_edits is not None or args.expected_receipt_sha256 is not None:
         try:
             if (len(sys.argv) != 5 or not args.verify_local_edits
@@ -1466,15 +1536,19 @@ def _main(offline_transport=None):
                 raise ValueError("回执与首次送审时留存的摘要不符")
             _, items = load_checklist(3, REFERENCE_MD)
             receipt = load_receipt(path, len(items), raw=raw)
-            if receipt["binding"]["rules_sha256"] != rules_binding(REFERENCE_MD)["rules_sha256"]:
-                raise ValueError("旧回执与当前候选规则不一致")
+            binding = rules_binding(REFERENCE_MD)
+            previous_rules = receipt["binding"]["rules_sha256"]
+            transition = None
+            if previous_rules != binding["rules_sha256"]:
+                transition = compatible_rules_transition(previous_rules, binding)
             verified = verify_local_edits(receipt)
             if raw != open_bytes(path):
                 raise ValueError("核对过程中复核回执变化")
             emit({"ok": False, "local_only": True, "local_release_ready": True,
                   "disposition": "locally_verified", "decision": receipt["report"]["decision"],
                   "review_completed": True, "receipt": path, "receipt_sha256": sha256_hex(raw),
-                  "verified_files": verified, "stage": "verify_local_edits"}, 0)
+                  "verified_files": verified, "rules_transition": transition,
+                  "stage": "verify_local_edits"}, 0)
         except (ValueError, OSError, KeyError, TypeError, AttributeError) as exc:
             emit({"ok": False, "local_only": True, "local_release_ready": False,
                   "stage": "verify_local_edits", "error": str(exc)}, 2)
@@ -1498,7 +1572,7 @@ def _main(offline_transport=None):
                      or args.resolve_ledger or args.ledger_backfill or args.fixture_template
                      or args.resolve_fixture or args.revoke_fixture or args.unattended_state
                      or args.unattended_action or args.retry_truncated_tokens or args.model
-                     or args.recover_previous_format or args.fixture_attestation
+                     or args.recover_previous_format or args.corrected_previous or args.fixture_attestation
                      or args.fixture_sha256 or args.confirm_independent_review
                      or args.transport != "responses" or args.port != DEFAULT_PORT or args.no_stream)
         if (sum(bool(mode) for mode in recovery_modes) != 1 or conflicts
@@ -1532,7 +1606,7 @@ def _main(offline_transport=None):
     if any(fixture_modes):
         conflicts = (args.pack or args.previous or args.inputs or args.point or args.probe or args.lint_pack
                      or args.validate_report or args.show_contract or args.ledger_backfill or args.resolve_ledger
-                     or args.new_cycle or args.recover_previous_format)
+                     or args.new_cycle or args.recover_previous_format or args.corrected_previous)
         if (sum(bool(x) for x in fixture_modes) != 1 or conflicts
                 or (not args.resolve_fixture and (args.dry_run or args.fixture_attestation
                                                   or args.fixture_sha256 or args.confirm_independent_review))):
@@ -1561,6 +1635,11 @@ def _main(offline_transport=None):
     if args.fixture_attestation or args.fixture_sha256 or args.confirm_independent_review:
         emit({"ok": False, "stage": "args", "error": "审核记录参数仅用于 --resolve-fixture"}, 2)
 
+    if args.corrected_previous and (not args.previous or args.recover_previous_format or args.new_cycle
+            or args.validate_report or args.show_contract or args.lint_pack or args.probe
+            or args.unattended_state or args.ledger_backfill or args.resolve_ledger
+            or args.recover_send_lock or args.resolve_fixture):
+        emit({"ok": False, "stage": "args", "error": "格式纠正侧件仅用于原回执的有界增量复核"}, 2)
     if args.recover_previous_format and (not args.previous or args.validate_report or args.show_contract or args.lint_pack):
         emit({"ok": False, "stage": "args", "error": "格式恢复仅用于带--previous的增量包/预检"}, 2)
     if args.new_cycle and (not args.previous or not args.inputs
@@ -1740,6 +1819,17 @@ def _main(offline_transport=None):
                     os.path.realpath(os.path.dirname(args.previous))):
                 raise ValueError("复核包与上一轮回执须在同一目录")
             previous = load_receipt(args.previous, len(items))
+            if args.corrected_previous:
+                corrected_path = os.path.abspath(args.corrected_previous)
+                bound_paths = {os.path.normcase(f["path"]) for f in binding["files"]}
+                if not {os.path.normcase(os.path.realpath(p)) for p in
+                        (args.previous, corrected_path)}.issubset(bound_paths):
+                    raise ValueError("原回执和格式纠正侧件必须列入本轮绑定")
+                previous, recovered_previous = recover_corrected_baseline(
+                    args.previous, previous, len(items), corrected_path)
+                if not {os.path.normcase(os.path.realpath(row["path"])) for row in
+                        recovered_previous["artifact_files"]}.issubset(bound_paths):
+                    raise ValueError("格式纠正请求、原始返回和共享认领必须列入本轮绑定")
             if args.recover_previous_format:
                 if os.path.normcase(os.path.realpath(os.path.dirname(args.pack))) != os.path.normcase(
                         os.path.realpath(os.path.dirname(args.previous))):
@@ -1760,7 +1850,7 @@ def _main(offline_transport=None):
                     label = "新周期" if args.new_cycle else "整改复核"
                     raise ValueError("%s与基线的 %s 不一致" % (label, key))
             rules_changed = binding["rules_sha256"] != previous["binding"]["rules_sha256"]
-            if rules_changed and recovered_previous is None:
+            if rules_changed and (recovered_previous is None or args.corrected_previous):
                 rules_transition = compatible_rules_transition(previous["binding"]["rules_sha256"], binding)
             if recovered_previous is not None:
                 recovered_previous.update(rules_changed=rules_changed,
@@ -1779,16 +1869,25 @@ def _main(offline_transport=None):
                 review_evidence.lint_pack(original, binding)
                 result, code = review_result(previous, args.previous, reused=True)
                 emit(result, code)
+            consumed_recovery = (previous.get("recovered_previous") or {}) if args.task_approval else {}
+            if consumed_recovery:
+                if sha256_hex(open_bytes(consumed_recovery["source_receipt"])) != consumed_recovery["source_sha256"]:
+                    raise ValueError("已消费的格式恢复原回执发生变化")
             if baseline and any(
                     record.get("report") is None and os.path.normcase(os.path.realpath(path)) !=
-                    os.path.normcase(os.path.realpath(args.previous)) for path, record in related):
+                    os.path.normcase(os.path.realpath(args.previous))
+                    and sha256_hex(open_bytes(path)) != consumed_recovery.get("source_sha256")
+                    for path, record in related):
                 raise ValueError("已有未完成的审查响应；先离线诊断，不得更换包重复送审")
-            if not unattended and baseline and (baseline.get("report") or {}).get("decision") == "不通过":
+            if args.task_approval:
+                import review_task
+                review_task.validate_progress(binding, previous)
+            if not unattended and not args.task_approval and baseline and (baseline.get("report") or {}).get("decision") == "不通过":
                 emit({"ok": False, "stage": "review_limit", "decision": "不通过",
                       "disposition": "rejected_stop",
                       "error": "首轮明确否决；不得作为普通整改轮送审，新周期须用户明确决定"}, 3)
             round_limit = 3 if unattended else 2
-            if baseline and (baseline["round"] >= round_limit or any(
+            if not args.task_approval and baseline and (baseline["round"] >= round_limit or any(
                     record.get("report") is not None and record["round"] >= round_limit for _, record in related)):
                 emit({"ok": False, "stage": "review_limit",
                       "decision": (previous.get("report") or {}).get("decision", "未完成"),
@@ -1805,6 +1904,10 @@ def _main(offline_transport=None):
                         result, code = review_result(record, path, reused=True)
                         emit(result, code)
                 raise ValueError("该 review_id/复核点已有审查记录；修改后须 --previous，不得改名重开主审")
+        if args.task_approval:
+            import review_task
+            review_task.validate(args.task_approval, binding, scope, args.timeout,
+                                 review_ledger.read_entries(args.ledger_dir))
     except (ValueError, OSError, KeyError, TypeError) as exc:
         emit({"ok": False, "stage": "binding", "error": str(exc)}, 2)
 
@@ -1817,7 +1920,7 @@ def _main(offline_transport=None):
             raise ValueError("disputes须定位上一轮当前blocking ID")
     except (ValueError, OSError, KeyError, TypeError) as exc:
         emit({"ok": False, "stage": "pack_lint", "error": str(exc), "local_only": True}, 2)
-    metadata = {key: binding[key] for key in ("timeline", "closures", "disputes") if key in binding}
+    metadata = {key: binding[key] for key in ("timeline", "closures", "disputes", "task_approval", "remediation_progress") if key in binding}
     first_review = binding.get("first_review") if not baseline else None
     if first_review is not None:
         if unattended:
@@ -1859,7 +1962,9 @@ def _main(offline_transport=None):
                                   "truncation_retry_cap": args.retry_truncated_tokens,
                                   "http_attempt_limit_per_send": RETRY_ATTEMPTS},
                 "contract": contract,
-                "recovered_previous": recovered_previous, "rules_transition": rules_transition,
+                "recovered_previous": recovered_previous or (
+                    previous.get("recovered_previous") if args.task_approval and previous else None),
+                "rules_transition": rules_transition,
                 "ledger": {"path": review_ledger.ledger_path(args.ledger_dir),
                            "project_id": scope["project_id"], "project_root": scope["project_root"],
                            "history_count": len(ledger_summary["group"]),
@@ -1900,6 +2005,8 @@ def _main(offline_transport=None):
                     allow_existing_receipt=bool(args.previous) and not bool(args.new_cycle),
                     previous_path=args.previous if not args.new_cycle else None,
                     recovered_previous=recovered_previous is not None,
+                    **({"task_approval": args.task_approval, "task_timeout": args.timeout,
+                        "task_round": baseline["round"] + 1 if baseline else 1} if args.task_approval else {}),
                     **({"unattended_round": unattended["round"]} if unattended else {}))
             except (ValueError, OSError, KeyError, TypeError) as exc:
                 emit({"ok": False, "stage": "ledger",
@@ -2044,7 +2151,9 @@ def _main(offline_transport=None):
                 "binding": binding, "report": report, "error": validation_error, "created_at": ts,
                 "previous": None if new_cycle else (os.path.abspath(args.previous) if args.previous else None),
                 "new_cycle": new_cycle or (previous.get("new_cycle") if previous else None),
-                "recovered_previous": recovered_previous, "rules_transition": rules_transition,
+                "recovered_previous": recovered_previous or (
+                    previous.get("recovered_previous") if args.task_approval and previous else None),
+                "rules_transition": rules_transition,
                 "pack": {"path": os.path.abspath(args.pack), "before_bytes": len(original),
                          "after_sha256": sha256_hex(expected_after)},
             }

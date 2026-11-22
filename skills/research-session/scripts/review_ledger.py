@@ -347,7 +347,9 @@ def append_entries(home: str | None, values: list[dict[str, Any]]) -> list[dict[
 def claim_send(home: str | None, scope: dict[str, str], binding: dict[str, Any],
                pack: str, cycle: int, allow_existing_receipt: bool = False,
                previous_path: str | None = None,
-               recovered_previous: bool = False, *, unattended_round: int | None = None) -> dict[str, Any]:
+               recovered_previous: bool = False, *, unattended_round: int | None = None,
+               task_approval: str | None = None, task_timeout: int = 1200,
+               task_round: int | None = None) -> dict[str, Any]:
     """Atomically check history and claim the object before any model request."""
     verify_ledger_scope(home, scope["project_root"])
     path = ledger_path(home)
@@ -361,6 +363,23 @@ def claim_send(home: str | None, scope: dict[str, str], binding: dict[str, Any],
         blocked = blocking_reason(summary)
         if blocked is not None:
             return {"claimed": False, "reason": blocked, "summary": summary}
+        if task_approval:
+            import review_task
+            if unattended_round is not None or type(task_round) is not int or task_round < 1:
+                raise ValueError("invalid task review round")
+            verified = review_task.validate(task_approval, binding, scope, task_timeout, entries)
+            if verified != binding.get("task_approval"):
+                raise ValueError("task approval changed before claim")
+            if previous_path:
+                previous_data = _read_json(previous_path)
+                if recovered_previous:
+                    # The dispatcher validates the effective format-recovered view.
+                    # It is still round0 in the immutable original receipt.
+                    previous_data = None
+                if previous_data is not None:
+                    review_task.validate_progress(binding, previous_data, [
+                        _read_json(row["receipt"]) for row in summary["canonical_receipts"]
+                        if row.get("receipt") and row.get("cycle", 1) == cycle])
         if not allow_existing_receipt and summary["canonical_receipts"]:
             return {
                 "claimed": False,
@@ -380,15 +399,20 @@ def claim_send(home: str | None, scope: dict[str, str], binding: dict[str, Any],
                 return {"claimed": False, "reason": ("review_history", "previous receipt required", {}), "summary": summary}
             with open(previous_path, "rb") as previous_file:
                 previous_sha = hashlib.sha256(previous_file.read()).hexdigest()
-            accepted_previous_round = (unattended_round - 1 if unattended_round else (0 if recovered_previous else 1))
+            accepted_previous_round = (0 if recovered_previous else task_round - 1) if task_approval else (
+                unattended_round - 1 if unattended_round else (0 if recovered_previous else 1))
             if not any(row.get("receipt_sha256") == previous_sha and row.get("round") == accepted_previous_round for row in receipts):
                 return {"claimed": False, "reason": ("review_history", "previous receipt missing or stale", {}), "summary": summary}
             for row in receipts:
                 round_number = row.get("round")
                 if type(round_number) is not int or round_number > accepted_previous_round and round_number >= 2:
                     return {"claimed": False, "reason": ("review_limit", "review round limit or unknown round", {}), "summary": summary}
-                if round_number <= 0 and not (recovered_previous and round_number == 0
-                                              and row.get("receipt_sha256") == previous_sha):
+                recovered_source = None
+                if task_approval and previous_path:
+                    recovered_source = (_read_json(previous_path).get("recovered_previous") or {}).get("source_sha256")
+                if round_number <= 0 and not (round_number == 0 and (
+                        recovered_previous and row.get("receipt_sha256") == previous_sha
+                        or recovered_source and row.get("receipt_sha256") == recovered_source)):
                     return {"claimed": False, "reason": ("review_history", "unfinished receipt requires investigation", {}), "summary": summary}
         entry = send_intent(scope, binding, pack, cycle)
         added = _append_locked(home, path, [entry])
@@ -544,7 +568,7 @@ def summarize(entries: list[dict[str, Any]], project_id: str, review_id: str,
     corrected = set()
     for correction in corrections:
         target = next((row for row in group if row.get("entry_id") == correction.get("resolves") and row.get("kind") == "receipt"), None)
-        if target is not None and _fixture_correction_valid(target, correction, canonical_real):
+        if target is not None and _fixture_correction_valid(target, correction, canonical_real, entries):
             corrected.add(target["entry_id"])
         else:
             invalid_corrections.append(correction)
@@ -1601,7 +1625,84 @@ def revoke_send_recovery(home: str | None, recovery_id: str, note: str) -> dict[
         _release_ledger(mutex)
 
 
-def _fixture_correction_valid(target: dict[str, Any], correction: dict[str, Any], canonical: str) -> bool:
+def _native_fixture_valid(target: dict[str, Any], review: dict[str, Any],
+                          data: dict[str, Any], entries: list[dict[str, Any]]) -> bool:
+    """Provenance is independently reviewed; hashes only validate retained bytes."""
+    proof = review.get("native_provenance")
+
+    def valid_file(item: object) -> bool:
+        return (isinstance(item, dict) and isinstance(item.get("path"), str)
+                and os.path.isabs(item["path"]) and _ordinary_unlinked_file(item["path"])
+                and _file_sha256(item["path"]) == item.get("sha256"))
+
+    if not valid_file(proof) or proof not in review["evidence"]:
+        return False
+    manifest = _read_json(proof["path"])
+    if not isinstance(manifest, dict) or manifest.get("schema") != "research-session/native-fixture-provenance/v1":
+        return False
+    producer, verification = manifest.get("producer"), manifest.get("verification")
+    if not valid_file(producer) or not valid_file(verification):
+        return False
+    run = _read_json(verification["path"])
+    if (not isinstance(run, dict) or run.get("schema") != "research-session/verification/v1"
+            or type(run.get("exit_code")) is not int or run["exit_code"] != 0
+            or not isinstance(run.get("inputs"), list) or not isinstance(run.get("artifacts"), list)):
+        return False
+    producer_input = manifest.get("producer_input_path", producer["path"])
+    if not isinstance(producer_input, str) or not os.path.isabs(producer_input):
+        return False
+    if not any(isinstance(item, dict) and norm_path(item.get("path", "")) == norm_path(producer_input)
+               and item.get("sha256") == producer["sha256"]
+               and item.get("after_sha256") == producer["sha256"] for item in run["inputs"]):
+        return False
+    if not any(valid_file(item) and norm_path(item["path"]) == norm_path(run.get("log", ""))
+               for item in run["artifacts"]):
+        return False
+    rows = manifest.get("rows")
+    if not isinstance(rows, list):
+        return False
+    matched = [row for row in rows if isinstance(row, dict) and row.get("entry_id") == target["entry_id"]]
+    if len(matched) != 1 or matched[0].get("target") != target:
+        return False
+    artifacts = matched[0].get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return False
+    originals = {}
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            return False
+        original, preserved = artifact.get("original"), artifact.get("preserved")
+        if (not valid_file(original) or not valid_file(preserved)
+                or original["sha256"] != preserved["sha256"]
+                or norm_path(original["path"]) == norm_path(preserved["path"])):
+            return False
+        key = norm_path(original["path"])
+        if key in originals:
+            return False
+        originals[key] = original["sha256"]
+    binding = data.get("binding")
+    if (not isinstance(binding, dict) or data.get("schema") != "research-session/review/v1"
+            or data.get("intent_id") != "fixture-intent" or data.get("guard_id") != "fixture-guard"
+            or binding.get("model") != "fixture" or binding.get("route") != {"wire_model": "fixture"}
+            or not isinstance(data.get("pack"), dict)
+            or originals.get(norm_path(target["receipt"])) != target["receipt_sha256"]
+            or norm_path(data["pack"].get("path", "")) not in originals
+            or binding.get("review_id") != target["review_id"]
+            or type(binding.get("point")) is not int or binding["point"] != target["point"]):
+        return False
+    # A local fixture never erases a real request or an unresolved send boundary.
+    return not any(row.get("project_id") == target["project_id"]
+                   and row.get("kind") in {"send_intent", "attempt", "lock"}
+                   and (row.get("intent_id") == data["intent_id"]
+                        or row.get("guard_id") == data["guard_id"]
+                        or (row.get("review_id") == target["review_id"]
+                            and row.get("point") == target["point"]
+                            and row.get("pack_sha256") == binding.get("pack_sha256")))
+                   for row in entries)
+
+
+def _fixture_correction_valid(target: dict[str, Any], correction: dict[str, Any], canonical: str,
+                              entries: list[dict[str, Any]] | None = None) -> bool:
     try:
         receipt = target["receipt"]
         attestation = correction["attestation"]
@@ -1644,6 +1745,10 @@ def _fixture_correction_valid(target: dict[str, Any], correction: dict[str, Any]
                     or _file_sha256(item["path"]) != item.get("sha256")):
                 return False
         data = _read_json(receipt)
+        if not isinstance(data, dict):
+            return False
+        if review.get("native_provenance") is not None:
+            return entries is not None and _native_fixture_valid(target, review, data, entries)
         binding = data.get("binding")
         return (isinstance(data, dict) and isinstance(binding, dict)
                 and data.get("schema") is None and data.get("pack") is None
@@ -1681,7 +1786,7 @@ def _prepare_fixture_correction(entries: list[dict[str, Any]], entry_id: str,
                        receipt=target.get("receipt"), receipt_sha256=target.get("receipt_sha256"),
                        attestation=os.path.abspath(attestation), attestation_sha256=attestation_sha256)
     canonical = canonical_reviews(target["project_root"])
-    if not _fixture_correction_valid(target, correction, canonical):
+    if not _fixture_correction_valid(target, correction, canonical, entries):
         raise ValueError("夹具回执或证据绑定无效，停止纠错")
     revoked = {row.get("resolves") for row in entries if row.get("kind") == "resolution"
                and row.get("resolution_type") == "revoke_fixture"}
@@ -1692,7 +1797,7 @@ def _prepare_fixture_correction(entries: list[dict[str, Any]], entry_id: str,
         raise ValueError("存在冲突纠错，停止")
     if active:
         existing = active[0]
-        if (not _fixture_correction_valid(target, existing, canonical)
+        if (not _fixture_correction_valid(target, existing, canonical, entries)
                 or existing.get("attestation") != correction["attestation"]
                 or existing.get("attestation_sha256") != attestation_sha256):
             raise ValueError("现有纠错失效或证明不同；先显式撤销再复核")

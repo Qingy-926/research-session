@@ -194,7 +194,7 @@ class StreamDeadlineTest(unittest.TestCase):
 
 class ResponseContractTest(unittest.TestCase):
     def test_prior_transport_version_can_continue_only_with_explicit_binding(self):
-        files = ['scripts/audit_dispatch.py', 'references/codex-review-pack.md', 'SKILL.md', 'references/autonomy-bounds.md', 'references/review-evidence.md', 'scripts/review_evidence.py', 'scripts/review_ledger.py', 'references/project-work.md', 'references/preregistration.md', 'references/independent-review.md', 'references/autonomous-start.md', 'references/retrieval-evidence.md', 'references/claim-evidence.md']
+        files = ['scripts/audit_dispatch.py', 'references/codex-review-pack.md', 'SKILL.md', 'references/autonomy-bounds.md', 'references/review-evidence.md', 'scripts/review_evidence.py', 'scripts/review_ledger.py', 'scripts/review_format.py', 'scripts/review_task.py', 'references/project-work.md', 'references/preregistration.md', 'references/independent-review.md', 'references/autonomous-start.md', 'references/retrieval-evidence.md', 'references/claim-evidence.md']
         digest = hashlib.sha256()
         for name in files:
             digest.update((ROOT / name).read_bytes())

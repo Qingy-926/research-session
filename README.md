@@ -1,22 +1,22 @@
 # research-session
 
-research-session 是一个面向科研全流程的双端插件（Trae / Codex）：把项目接续、论文精读、研究判断、预注册、复现审计、独立复核与写作定稿串成可核验的工作流。它强调证据绑定与授权边界：不代写、不伪造引用或数字，复核未过就明确阻断。本仓库是 **5.2.0 候选**，尚未在 GitHub 公开发布，也未上架任何市场；无人值守执行只在离线夹具中可用。
+research-session 是一个面向科研全流程的双端插件（Trae / Codex）：把项目接续、论文精读、研究判断、预注册、复现审计、独立复核与写作定稿串成可核验的工作流。当前 **6.2.0 候选**支持三档偏好、计划预算、任务内连续整改和会话内无人值守守卫。自主/无人值守不另问新周期，也没有插件级固定轮数或请求上限；真实后台控制器仍待宿主验收，仅在离线夹具中开放。
 
 ## What this project is
 
-research-session packages a research workflow as skills plus small standard-library CLIs. The workflow is built around three review points (before execution, before registration, before final reporting), evidence binding and input hashes, a cross-project review ledger, send locks, and a two-round review ceiling per `review_id`.
+research-session packages a research workflow as skills plus small standard-library CLIs. Three scientific review points, evidence binding, a cross-project ledger and send locks apply to every mode. Controlled reviews retain a two-round ceiling; autonomous and unattended session work can continue incremental reviews within one approved task, with verified changes and a shared request/time allocation.
 
 What it deliberately does **not** do:
 
 - It does not ghostwrite papers or fabricate evidence. Drafting without sources is capped and must be marked as unverified.
 - It does not invent citations, metrics, reviewer comments, or "novelty" verdicts. Unknown sources stay unknown; unmeasured numbers stay unmeasured.
 - It does not grant experiment, budget, data, or publishing permission. Passing a gate is not new authorization.
-- It does not run unattended research for real projects. The unattended controller accepts only a synthetic fixture project.
+- It does not run unattended research in the background or across sessions. The background controller accepts only a synthetic fixture project; the in-session guard can work on a real project only inside the current approved session.
 
 ## Status
 
-- Version **5.2.0** is a release candidate in this source tree. It has not been published on GitHub, has no marketplace listing, and has no online CI status yet.
-- Unattended / autonomous execution is implemented as an offline fixture only; it is not a production release mechanism.
+- Version **6.2.0** is a release candidate in this source tree. It has not been published on GitHub, has no public marketplace listing, and has no online CI status yet.
+- The background unattended controller is implemented as an offline fixture only; it is not a production release mechanism. The in-session guard runs only in the current approved session.
 - Verified environments: Windows + Python 3.13.5 and Ubuntu 24.04 (WSL2) + Python 3.12.3, both with pytest 8.3.4, offline tests only. Clean-host installation, real host loading, and real provider calls are **unverified** (see [Limitations](#limitations-and-unverified-items)).
 
 ## Quick start
@@ -32,10 +32,14 @@ Full installation, upgrade, uninstall, and troubleshooting steps live in [docs/i
 ### Codex
 
 1. Place the same directory in Codex's marketplace plugin directory, named `research-session`.
-2. Let Codex read `.codex-plugin/plugin.json` (version `5.2.0`, same metadata as the Trae manifest).
+2. Let Codex read `.codex-plugin/plugin.json` (version `6.2.0`, same metadata as the Trae manifest).
 3. Confirm the entry skill and sub-skills are visible in a session.
 
 Both hosts share one source tree; the two manifests must stay identical in version and metadata.
+
+### Codex++ Research Session
+
+配套拓展在输入框上方显示 **Research Session**。调用研究技能时默认自主推进；各聊天保留自己的设置。开启 Codex 原生 Plan，再点无人值守，填写分钟数及选填金额。用户批准具体计划后，任务内整改、验证及分配预算内复核一次覆盖，不另问新周期；AI整理`--task-approval`绑定，沿同一ID累计。三个科研门仍须通过；新协议、范围和预算变化另行裁决。
 
 ## Run it offline (no provider)
 
@@ -69,7 +73,7 @@ Legend: **Built-in offline（内置离线）** = implemented in this tree and co
 | Experiment matrix, metrics, log governance | Frozen matrix checks, metric recomputation, log and archive lists | Built-in offline（内置离线）; data collection and training stay external | [experiment-matrix-audit](skills/experiment-matrix-audit/SKILL.md), [metric-verdict-audit](skills/metric-verdict-audit/SKILL.md), [research-log-governance](skills/research-log-governance/SKILL.md) |
 | Independent review and controlled recovery | Three review points, evidence binding, send lock, revocable recovery, no automatic resend | Built-in offline（内置离线）contracts and tests; live dispatch needs an explicit provider | [independent-review](skills/research-session/references/independent-review.md), [`audit_dispatch.py`](skills/research-session/scripts/audit_dispatch.py) |
 | Writing, finalization, reviewer response | Evidence-cited drafting, finalization gate, reviewer-question mapping | Host or external dependency（宿主或外部依赖）for rendering and live review; review judgment is built in | [research-introduction](skills/research-introduction/SKILL.md), [research-reviewer](skills/research-reviewer/SKILL.md), [manuscript-writing](skills/research-session/references/manuscript-writing.md) |
-| Unattended execution | Startup card, bounded chain, pause/resume | Offline fixtures only（仅离线夹具） | [autonomous-start](skills/research-session/references/autonomous-start.md), [`autonomy_run.py`](skills/research-session/scripts/autonomy_run.py) |
+| Background unattended controller | Startup card, bounded chain, pause/resume | Offline fixtures only（仅离线夹具） | [autonomous-start](skills/research-session/references/autonomous-start.md), [`autonomy_run.py`](skills/research-session/scripts/autonomy_run.py) |
 | Full response-letter workflow | End-to-end rebuttal letter generation | Not supported（未支持） | — |
 
 Not supported in this release: a built-in multi-source retriever, retrieving/training/monitoring stacks, a server-side lineage database, a full benchmark/eval-viewer system, and production unattended research. These are not implied by the rows above.
@@ -99,7 +103,7 @@ or `recheck` (a specific judgment is still required). `audit_dispatch.py --verif
 reconstructs the reviewed bytes offline, rejects duplicates, omissions, extra edits and hash drift,
 and reports `locally_verified` with `gate_passed=false`. A mixed remediation round only re-reviews
 remaining judgments and affected dependencies while accounting for every old blocker. The three
-scientific gates, authorization, xhigh effort, receipts and the two-round ceiling per `review_id`
+scientific gates, authorization, xhigh effort, receipts and the controlled two-round ceiling per `review_id`
 are unchanged; local verification is not a gate pass, not a receipt rewrite, and not new
 authorization. This is a process change; it is not evidence of stronger model reasoning or general
 research-quality gains.

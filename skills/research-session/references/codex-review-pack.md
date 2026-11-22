@@ -5,6 +5,8 @@
 
 脚本命令先按 [调用入口](plugin-invocation.md#independent-review-entry-and-read-only-continuity-check) 设置 `RS_SKILL_ROOT` 为本会话实际加载的技能根；共享端用自身入口，Codex 用所加载插件附带脚本，不凭同名跨副本调用。
 
+自主推进和无人值守：使用[任务内连续整改](independent-review.md#任务内连续整改)的`--task-approval`，保持同一ID和累计轮次，不要求新周期。下文新周期模板仅适用于开发者受控模式；报告合同与三个必查点共用。
+
 ## 一、各复核点必查项
 
 ### 复核点 1 · 预注册批准前
@@ -196,6 +198,28 @@ The same explicit path supports the observed first-round nonempty `repair.patch`
 形式修复不消耗实质轮次，也不授权无限重发；需要外部纠正格式时先定位缺项，按已有预算/授权只传必要内容，不再附整包。
 历史回执、旧round和旧null原样保留，不能重写成“当时已通过”。
 
+### 受控格式纠正旁证
+
+只有已明确授权的格式维护及额外请求预算可执行；格式失败本身不新增请求额度。
+先固定原回执SHA，再以本会话加载技能根运行同一命令的dry-run和单次正式调用：
+
+```bash
+python "$RS_SKILL_ROOT/scripts/review_format.py" \
+  --receipt "<原包.md.review.json>" --expected-receipt-sha256 "<首次核对值>" \
+  --output "<同目录新文件.format-correction.json>" \
+  --responses-url "<原responses URL>" --model "<原model>" --dry-run
+```
+
+正式调用仅移除--dry-run；仍固定xhigh、cap≤32768和一次HTTP。不发整包，只传已保存报告与合同。
+原判词必须为待整改/不通过/未完成；后两者仍遵守原有停止语义。只修coverage状态/关联和无损locator，
+不能删改问题、理由、原证、修复、缺证或数值。原件、规则未知、输入漂移、未闭合发送、
+缺终态、非JSON或纠正不合格均停止；所有请求marker保留，不通过换文件或新周期重发。
+
+有效旁证仍不是正式复核完成或通过。新增量包绑定原回执、旁证及预检报告所列全部artifact_files
+（本地请求marker、共享认领、原始返回），用原--previous另加--corrected-previous送普通第二轮。
+完整复核所有旧blocking及受影响依赖；原失败回执round0不改，内存基线effective round1，
+下一有效回执round2。未知规则继续拒绝；受控模式的原判词不通过仍须用户决定。自主/无人值守按任务批准、进展和预算续审，不要求新周期。
+
 **人工兜底**（脚本 exit 2 且用户要求时）：
 
 > 请读取文件 `<绝对路径>\01-资料\reviews\<文件名>.md`，按本复核点和上述 JSON 合同审查；不要修改科研原件。
@@ -244,7 +268,7 @@ The same explicit path supports the observed first-round nonempty `repair.patch`
 科研目标、协议、预算等实质变化请求用户裁决，不因审计意见自行扩权。
 实现缺陷采用**同次修复交付**：复核方以 `domain=implementation` 标记，并返回 `repair` 补丁或具体不能安全修改的原因。
 主会话核对目标SHA、补丁涉及路径及权限，直接应用可接受补丁、运行失败用例与受影响回归，不把问题转发给用户再等一次“修改”。
-审计脚本没有文件工具，不能假称复核方已改文件；主会话落盘后的独立批准仍受原两轮限制，不由补丁作者自证。
+审计脚本没有文件工具，不能假称复核方已改文件；主会话落盘后的独立复核按任务模式办理，受控模式保留两轮限制，不由补丁作者自证。
 
 增量包的内容依次为：基线回执路径及摘要 → 上述整改表 → 实际 diff → 本地验证结果 → 变化及其依赖所需的证据片段。
 它不再粘贴整份旧包或旧审查全文。输入清单沿用 `review_id`、更新真实 SHA：
@@ -258,8 +282,7 @@ python "$RS_SKILL_ROOT/scripts/audit_dispatch.py" \
 第二轮模型 `closed_findings` 必须覆盖上一轮全部 `blocking` ID，每项有 `id/status/evidence`，
 `status` 只用已解决/未解决。`evidence` 可为非空字符串或含非空 `actual_evidence` 的对象；后者无损序列化，不改变裁决。未解决项仍列为阻断。新增阻断须指出新证据或与修改的关联，不能借复核扩展目标。
 
-默认仅主审一轮、整改复核一轮；第二轮仍未关闭则 README 留清具体分歧、影响及待决事项，不自动第三轮、不假通过。
-此时 `disposition=needs_user_decision`，交付“尚未通过”本身是有效流程终点，不要求继续消耗token直到放行。
+开发者受控模式仅主审一轮、整改复核一轮；第二轮仍未关闭则 README 留清分歧，返回`needs_user_decision`。自主/无人值守带`--task-approval`沿原ID累计整改复核，不另问新周期；有效非通过返回`task_revise`，每次仍先核真实进展及预算。任何模式都不以未通过伪装放行。
 可继续的普通修复与被阻断的科研动作分开；用户选择停止、缩小主张或变更方案时分别记录，不改写成“外审通过”。
 同一对象/复核点的包与回执放在项目权威 `01-资料/reviews`；不得移走证据、换包名或换 `review_id` 来重置次数
 （用户决定的新周期按下一节执行，不属此列）。台账会按项目身份拦截备份目录、搬迁回执和同号项目副本；

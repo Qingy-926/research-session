@@ -72,6 +72,7 @@
     "recheck_required",
     "response_incomplete",
     "revise_once",
+    "task_revise",
     "unattended_limit",
     "unattended_revise"
   ],

@@ -66,6 +66,8 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inputs", required=True)
     parser.add_argument("--receipt")
     parser.add_argument("--model")
+    parser.add_argument("--task-approval")
+    parser.add_argument("--timeout", type=int, default=1200)
     args = parser.parse_args(argv)
     result = {"schema": "research-session/local-preflight/v1", "local_only": True,
               "ready": False, "review_completed": False, "gate_passed": False,

@@ -78,7 +78,7 @@ def test_skill_inventory_matches_readme_capability_matrix():
 def test_manifests_and_skill_version_agree():
     manifests = {host: json.loads(read(path)) for host, path in MANIFESTS.items()}
     for host, manifest in manifests.items():
-        assert manifest["version"] == "5.2.0", host
+        assert manifest["version"] == "6.2.0", host
         assert manifest["license"] == "Apache-2.0", host
         assert manifest["repository"] == REPO_URL, host
     assert manifests["trae"] == manifests["codex"]
@@ -87,7 +87,8 @@ def test_manifests_and_skill_version_agree():
     assert "版本 v%s" % manifests["codex"]["version"] in skill_text
 
     changelog = read(ROOT / "CHANGELOG.md")
-    assert re.search(r"^##\s*\[?5\.2\.0\]?", changelog, re.M), "missing current version section"
+    version = re.escape(manifests["codex"]["version"])
+    assert re.search(rf"^## \[{version}\](?:\s|$)", changelog, re.M), "missing current version section"
 
 
 def test_license_and_third_party_notices():

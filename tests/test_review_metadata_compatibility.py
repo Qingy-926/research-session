@@ -11,6 +11,9 @@ SKILL = Path(__file__).resolve().parents[1] / "skills" / "research-session"
 MANIFEST = SKILL / "references" / "review-rules-compatibility.json"
 PRE_TRANSLATION = "d26e77daa65d168d2e8c4bf1293243548b50d8d821dd08c3e8b38bb938a4d9f6"
 PREVIOUS_V215 = "9bdc84e68489b4c78d7b27627e86edb80a8c43c44e1d470d9442214677090670"
+PREVIOUS_V530 = "8e3b401014c98a9cffd055525bcc57c00ba75a177f2c0c787c19afed5456f105"
+PREVIOUS_V600 = "d2033a26e563685d060b699c254ae94e5a13f6e03a49e73ee925f3332064f2a0"
+PREVIOUS_V610 = "3ee3b2e61abd2574b7c6d6563f5b86904c4f8a4c4ea2901e0f92c5095c7bc280"
 BOUND_FILES = [
     "scripts/audit_dispatch.py",
     "references/codex-review-pack.md",
@@ -19,6 +22,8 @@ BOUND_FILES = [
     "references/review-evidence.md",
     "scripts/review_evidence.py",
     "scripts/review_ledger.py",
+    "scripts/review_format.py",
+    "scripts/review_task.py",
     "references/project-work.md",
     "references/preregistration.md",
     "references/independent-review.md",
@@ -59,11 +64,37 @@ def test_previous_v215_receipt_compatibility(dispatch, binding):
     assert result["current_rules_sha256"] == binding["rules_sha256"]
 
 
+def test_desktop_preferences_preserve_exact_v530_receipt_compatibility(dispatch, binding):
+    assert binding["rules_sha256"] != PREVIOUS_V530
+    result = dispatch.compatible_rules_transition(PREVIOUS_V530, binding)
+    assert result["previous_rules_sha256"] == PREVIOUS_V530
+    assert result["current_rules_sha256"] == binding["rules_sha256"]
+
+
 def test_compatibility_rejects_unknown_rules_and_wrong_current(dispatch, binding):
     with pytest.raises(ValueError):
         dispatch.compatible_rules_transition("f" * 64, binding)
     with pytest.raises(ValueError):
         dispatch.compatible_rules_transition(PRE_TRANSLATION, {**binding, "rules_sha256": "a" * 64})
+
+
+def test_native_fixture_maintenance_retains_exact_v600_continuation(dispatch, binding):
+    transition = dispatch.compatible_rules_transition(PREVIOUS_V600, binding)
+    assert transition["previous_rules_sha256"] == PREVIOUS_V600
+    assert transition["current_rules_sha256"] == binding["rules_sha256"]
+
+
+def test_task_continuation_accepts_exact_v601_rules_without_reset(dispatch, binding):
+    old = "c72880b11aa80879d6061298bd51de15aec19263e7cfda104e7c550b1c577374"
+    transition = dispatch.compatible_rules_transition(old, binding)
+    assert transition["previous_rules_sha256"] == old
+    assert transition["current_rules_sha256"] == binding["rules_sha256"]
+
+
+def test_task_budget_fix_accepts_exact_v610_rules(dispatch, binding):
+    transition = dispatch.compatible_rules_transition(PREVIOUS_V610, binding)
+    assert transition["previous_rules_sha256"] == PREVIOUS_V610
+    assert transition["current_rules_sha256"] == binding["rules_sha256"]
 
 
 def test_compatibility_rejects_changed_manifest_after_binding(dispatch, binding, monkeypatch):

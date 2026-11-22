@@ -6,7 +6,34 @@
 
 示例：“启动无人值守模式，预算约 10 元，不设总时限。请按项目推荐任务包，列必做、条件扩展、禁区和 GPU 估时，等我确认一次。”
 
-v4 可准备真实项目的卡，但控制器仅允许显式选择的临时合成项目；真实无人值守执行和无人送审仍关闭。已有项目的批准链按[有界自主](autonomy-bounds.md)办理，新入口不接管、不双启、不扩权。
+v4 可准备真实项目的卡。专用后台控制器只接受显式选择的临时合成项目，其真实无人值守执行和无人送审仍关闭；会话内无人值守守卫可在真实项目、当前会话内、取得用户对具体计划的批准后使用，不跨会话、不后台运行。已有项目的批准链按[有界自主](autonomy-bounds.md)办理，新入口不接管、不双启、不扩权。
+
+## Codex++ 桌面计划
+
+拓展 0.3.0 的 `[Research Session: 无人值守计划]` 请求携带正整数分钟与选填人民币金额。按当前项目形成一份待审阅的计划，从实施批准起计时间，预留收尾时间。预算内优先完成必做项，条件扩展须有具体触发证据、剩余时间及相应授权。缺失金额记为未设置，不套用普通启动卡的默认软线；填入金额时只用于本次计划估算。时间不足时缩小成果范围，并明确剩余工作。未知用量或估时如实标记。
+
+金额估算按每百万 token 计算：普通输入 ¥0.60、输出 ¥3.00、缓存写入 ¥0.75、缓存读取 ¥0.03。计量分类须互斥；缺少分类或无法归属当前任务时，相应费用及合计保留未知。
+
+计划准备阶段只做宿主允许的调查与验证。拓展只在同一聊天满足原生 Plan 条件的下一次发送附上预算。宿主须核实实施消息确为用户对当前具体计划的批准；引用的相同文本、预算或模型自述不能代替批准。批准后可按既有能力执行任务内普通研究步骤，整改、验证和预算内复核一次覆盖，不另设新周期；按[任务内连续整改](independent-review.md#任务内连续整改)整理绑定并计量。专用后台控制器仍只开放离线夹具，不能声称其已通过真实项目验收。
+
+## 会话内无人值守守卫
+
+自主推进/无人值守没有插件级固定轮数或固定请求次数；唯一硬约束是当前任务批准的 `max_requests`、`reserved_requests`、`deadline`、`closeout_seconds`，加上实质进展与安全停止。批准记录可选带 `threadId`（非空字符串）和 `verifiedByHost`（出现时必须为布尔 `true`）；`verifiedByHost` 只是宿主声明，不认证用户身份，也不替代来源 SHA 校验。`6` 次只是某个 `research-session/review-task/v1` 记录里的具体值，不是默认值；两轮上限只适用于开发者受控模式。
+
+同一任务延长授权时，更新同一任务批准记录和同一证据目录，不按每个时长新建一套立项/验证目录。
+
+批准后需要记录本会话的动作进度时，让助手从既有批准整理计划与批准记录（`research-session/session-plan/v1`、`research-session/session-approval/v1`），再从本会话实际加载的技能根执行。`plan_sha256` 是去掉该字段后的计划规范化 JSON（键排序、紧凑分隔符、UTF-8）的 SHA256，批准记录用同一值绑定计划。
+
+```powershell
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" start --plan "<计划.json>" --approval "<批准.json>" --state "<状态.json>"
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" next --state "<状态.json>"
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" claim --state "<状态.json>" --action "<动作ID>"
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" complete --state "<状态.json>" --action "<动作ID>" --evidence "<证据>"
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" fail --state "<状态.json>" --action "<动作ID>" --reason "<原因>"
+python -B "$RS_SKILL_ROOT/scripts/session_guard.py" status --state "<状态.json>"
+```
+
+守卫只在本会话校验计划与批准的绑定、依赖、时限和预算，不执行动作、不联网、不启动后台进程；脚本进程结束或会话关闭即停止，不承诺跨会话继续。专用后台控制器仍只限离线夹具。
 
 ## 先自查，再给成果选项
 

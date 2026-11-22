@@ -107,7 +107,12 @@ def test_chained_edits_cannot_close_an_unchanged_report(tmp_path):
         audit.verify_local_edits(receipt)
 
 
-def test_local_verification_uses_real_first_receipt_without_a_second_request(tmp_path, monkeypatch):
+@pytest.mark.parametrize("historical_rules", [
+    None,
+    "8e3b401014c98a9cffd055525bcc57c00ba75a177f2c0c787c19afed5456f105",
+    "f" * 64,
+], ids=["current", "known-v530", "unknown"])
+def test_local_verification_uses_real_first_receipt_without_a_second_request(tmp_path, monkeypatch, historical_rules):
     import threading
     from http.server import ThreadingHTTPServer
     from test_review_closure import Proxy
@@ -148,8 +153,12 @@ def test_local_verification_uses_real_first_receipt_without_a_second_request(tmp
                               "--model", "fixture-reviewer", "--no-stream")
             assert (code, first.get("disposition")) == (3, "local_verification_required"), first
             receipt = pathlib.Path(first["receipt"])
+            if historical_rules is not None:
+                fixture = json.loads(receipt.read_bytes())
+                fixture["binding"]["rules_sha256"] = historical_rules
+                receipt.write_text(json.dumps(fixture), encoding="utf-8")
             original_receipt = receipt.read_bytes()
-            verify = ("--verify-local-edits", receipt, "--expected-receipt-sha256", first["receipt_sha256"])
+            verify = ("--verify-local-edits", receipt, "--expected-receipt-sha256", audit.sha256_hex(original_receipt))
             run_manifests = tmp_path / "must-not-write"
             monkeypatch.setenv("RESEARCH_SESSION_RUN_MANIFEST_DIR", str(run_manifests))
             assert run(*verify)[0] == 2
@@ -159,8 +168,13 @@ def test_local_verification_uses_real_first_receipt_without_a_second_request(tmp
             assert run(*verify)[0] == 2
             receipt.write_bytes(original_receipt)
             code, final = run(*verify)
-            assert (code, final["local_release_ready"], final["gate_passed"]) == (0, True, False)
-            assert final["decision"] == "待整改"
+            if historical_rules == "f" * 64:
+                assert (code, final["local_release_ready"]) == (2, False)
+            else:
+                assert (code, final["local_release_ready"], final["gate_passed"]) == (0, True, False), final
+                assert final["decision"] == "待整改"
+                if historical_rules is not None:
+                    assert final["rules_transition"]["previous_rules_sha256"] == historical_rules
             assert receipt.read_bytes() == original_receipt
             assert len(Proxy.requests) == 1
             assert not run_manifests.exists()

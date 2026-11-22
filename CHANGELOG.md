@@ -11,6 +11,75 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.2.0] - 2026-11-22
+
+- Clarify that autonomous and unattended progress has no plugin-level fixed round or
+  request count. Only the task approval's `max_requests`, `reserved_requests`,
+  `deadline` and `closeout_seconds`, plus real progress and safe stops, bound the work.
+- Treat numbers such as 6 as concrete approval values, not defaults. The two-round
+  limit remains specific to the developer-controlled mode.
+- Add `session_guard.py`, a stdlib-only in-session state machine that binds
+  `research-session/session-plan/v1` to `research-session/session-approval/v1`,
+  checks dependencies, deadlines and budgets, and fails closed with exit 2. It never
+  executes actions, uses the network or starts background processes.
+- Keep extension authorization on the same task approval and evidence directory
+  instead of opening a new project/verification tree per time budget.
+- Add guard, budget-value (6 and 12) and rejection coverage.
+
+## [6.1.1] - 2026-11-22
+
+- Filter task budget history by ledger time before opening receipts. Legacy sends
+  registered within the task window still use their verified receipt timestamp.
+- Keep the existing evidence checks for in-window fixture exclusions and the
+  current review object. Existing ledgers and receipts need no migration.
+
+## [6.1.0] - 2026-11-22
+
+- Add task-bound continuous remediation for autonomous and unattended session work.
+- Keep the same review ID, point, cycle and cumulative round; no new-cycle approval within the approved task.
+- Require changed controlled evidence, fresh successful verification and an active blocker before each continuation.
+- Atomically count task request allocations across project review sends; preserve locks, unknown-send stops and closeout time.
+- Keep the controlled two-round path, scientific gates, immutable receipts and fixture-only background controller.
+
+## [6.0.1] - 2026-11-21
+
+- Add explicit append-only, revocable recovery for independently verified native consumer fixtures.
+- Bind producer source, retained execution log, exact ledger entry and original/preserved bytes.
+- Preserve real send history and scientific gates; revalidate provenance during scans and claims.
+- Retain desktop preferences, original receipts, bounded format correction and ordinary round limits.
+
+## [6.0.0] - 2026-11-21
+
+### Added
+
+- Codex++ Research Session 0.3.0 can send per-chat controlled or autonomous preferences.
+  The unattended plan request carries required minutes and an optional CNY estimate.
+- The entry skill uses the current request to route plan preparation and scopes optional work
+  to the plan's evidence, time and approvals. Real unattended dispatch remains fixture-only.
+- Explicit compatibility for the exact 5.3.0 rules digest. Existing receipts require current
+  evidence checks, and corrected baselines still require their original provenance.
+
+## [5.3.0] - 2026-11-21
+
+### Added
+
+- Explicit `review_format.py` format-only correction for a published first-round adverse report
+  whose contract failed. Requires the original receipt digest, exact provider/model/credential
+  route, known rules compatibility, a complete ledger scan and a single persistent claim shared
+  across project copies. It performs at most one HTTP call and never retries unknown outcomes.
+- Immutable correction sidecars bind the request, shared claim, saved raw response and terminal
+  status. Every finding, decision, reason, evidence and quantitative value is preserved with
+  JSON type-sensitive comparison. Only coverage status and finding links may be corrected;
+  locator arrays are losslessly retained as context.
+- Ordinary `--previous ... --corrected-previous ...` rechecks validate the complete correction
+  provenance and bind all artifacts. The original round0 receipt stays unchanged; the adverse
+  baseline counts as effective round1 and a valid ordinary recheck remains round2.
+
+### Unverified
+
+- Real-provider correction, clean-host UI loading, Ubuntu regression and online CI are not
+  established by the offline fixtures. No scientific approval or execution authority is added.
+
 ## [5.2.0] - 2026-11-21
 
 ### Added
