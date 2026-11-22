@@ -1,6 +1,6 @@
 # 版本、发布与回滚
 
-本文件说明 research-session 公共版本的版本号规则、发布流程、回滚方式、契约弃用与同步边界。当前源树为 **6.2.0 候选**，以下流程用于准备发布包。
+本文件说明 research-session 公共版本的版本号规则、发布流程、回滚方式、契约弃用与同步边界。当前源树为 **6.3.0 候选**，以下流程用于准备发布包。
 
 ## 1. 语义化版本
 
@@ -39,19 +39,19 @@ python tools/package_release.py --check-only     # 只构建并自检，不写 d
 ```bash
 python tools/package_release.py --out /tmp/release-a
 python tools/package_release.py --out /tmp/release-b
-sha256sum /tmp/release-a/research-session-6.2.0.zip /tmp/release-b/research-session-6.2.0.zip
+sha256sum /tmp/release-a/research-session-6.3.0.zip /tmp/release-b/research-session-6.3.0.zip
 ```
 
 校验已生成的包（在 `dist/` 内执行）：
 
 ```bash
-sha256sum -c research-session-6.2.0.zip.sha256
+sha256sum -c research-session-6.3.0.zip.sha256
 ```
 
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\dist\research-session-6.2.0.zip -Algorithm SHA256
+Get-FileHash .\dist\research-session-6.3.0.zip -Algorithm SHA256
 ```
 
 脚本在写盘前后都会解包到临时目录自检：两份 `plugin.json` 版本一致、技能数为 16、必需路径齐全、无被排除文件、逐文件哈希一致；任一失败即以非零状态退出。发布包包含 `.github/`（issue/PR 模板、CODEOWNERS 与 workflow），便于接收方复现同样的检查。

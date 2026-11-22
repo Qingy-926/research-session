@@ -65,7 +65,7 @@ def test_both_manifests_exist_and_declare_the_same_public_metadata(manifests):
         assert manifests["trae"][key] == manifests["codex"][key], key
     manifest = manifests["codex"]
     assert manifest["name"] == "research-session"
-    assert manifest["version"] == "6.2.0"
+    assert manifest["version"] == "6.3.0"
     assert manifest["license"] == "Apache-2.0"
     assert manifest["repository"] == "https://github.com/Qingy-926/research-session"
     for value in (manifest["author"]["name"], manifest["interface"]["developerName"]):
@@ -128,7 +128,7 @@ def test_run_manifest_round_trips_through_a_temp_directory(tmp_path):
     for key in ("schema", "run_id", "status", "config_sha256", "component_versions", "references", "artifacts"):
         assert reread[key] == built[key]
     assert set(schema["required"]) <= set(reread)
-    assert reread["component_versions"]["plugin"] == "6.2.0"
+    assert reread["component_versions"]["plugin"] == "6.3.0"
 
 
 def test_provider_and_args_errors_match_the_recovery_contract(monkeypatch, capsys):

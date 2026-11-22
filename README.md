@@ -1,6 +1,6 @@
 # research-session
 
-research-session 是一个面向科研全流程的双端插件（Trae / Codex）：把项目接续、论文精读、研究判断、预注册、复现审计、独立复核与写作定稿串成可核验的工作流。当前 **6.2.0 候选**支持三档偏好、计划预算、任务内连续整改和会话内无人值守守卫。自主/无人值守不另问新周期，也没有插件级固定轮数或请求上限；真实后台控制器仍待宿主验收，仅在离线夹具中开放。
+research-session 是一个面向科研全流程的双端插件（Trae / Codex）：把项目接续、论文精读、研究判断、预注册、复现审计、独立复核与写作定稿串成可核验的工作流。当前 **6.3.0 候选**支持三档偏好、计划预算、任务内连续整改和会话内无人值守守卫。自主/无人值守不另问新周期，也没有插件级固定轮数或请求上限；真实后台控制器仍待宿主验收，仅在离线夹具中开放。
 
 ## What this project is
 
@@ -15,7 +15,7 @@ What it deliberately does **not** do:
 
 ## Status
 
-- Version **6.2.0** is a release candidate in this source tree. It has not been published on GitHub, has no public marketplace listing, and has no online CI status yet.
+- Version **6.3.0** is a release candidate in this source tree. It has not been published on GitHub, has no public marketplace listing, and has no online CI status yet.
 - The background unattended controller is implemented as an offline fixture only; it is not a production release mechanism. The in-session guard runs only in the current approved session.
 - Verified environments: Windows + Python 3.13.5 and Ubuntu 24.04 (WSL2) + Python 3.12.3, both with pytest 8.3.4, offline tests only. Clean-host installation, real host loading, and real provider calls are **unverified** (see [Limitations](#limitations-and-unverified-items)).
 
@@ -32,7 +32,7 @@ Full installation, upgrade, uninstall, and troubleshooting steps live in [docs/i
 ### Codex
 
 1. Place the same directory in Codex's marketplace plugin directory, named `research-session`.
-2. Let Codex read `.codex-plugin/plugin.json` (version `6.2.0`, same metadata as the Trae manifest).
+2. Let Codex read `.codex-plugin/plugin.json` (version `6.3.0`, same metadata as the Trae manifest).
 3. Confirm the entry skill and sub-skills are visible in a session.
 
 Both hosts share one source tree; the two manifests must stay identical in version and metadata.

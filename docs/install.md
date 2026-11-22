@@ -31,7 +31,7 @@ Trae 读取 `.trae-plugin/plugin.json`，`skills` 字段指向插件根下的 `.
 ## Codex 安装
 
 1. 将同一插件目录放入 Codex 的 marketplace 插件目录（保持目录名与清单 `name` 一致：`research-session`）。
-2. Codex 以 `plugin.json` 的 `version`（当前 `6.2.0`）识别与升级插件。
+2. Codex 以 `plugin.json` 的 `version`（当前 `6.3.0`）识别与升级插件。
 3. 在会话中确认入口技能与子技能可见。
 
 ## 升级
@@ -66,7 +66,7 @@ Trae 读取 `.trae-plugin/plugin.json`，`skills` 字段指向插件根下的 `.
   测试不访问网络；真实 provider 调用不在默认测试范围内。
 - **Trae/Codex 未识别插件**：
   1. 确认对应目录存在且可解析：`.trae-plugin/plugin.json` / `.codex-plugin/plugin.json`；
-  2. 确认两份清单 `version` 一致且等于技能文件声明的 `6.2.0`；
+  2. 确认两份清单 `version` 一致且等于技能文件声明的 `6.3.0`；
   3. 确认清单 `skills` 指向的 `./skills/` 存在，且其中含 `research-session/SKILL.md`；
   4. 重新加载宿主。
 - **清单版本不一致**：预检直接报错（fail-closed），不会选用其中一份继续。

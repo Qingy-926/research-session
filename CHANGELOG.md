@@ -11,6 +11,17 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.3.0] - 2026-11-22
+
+- Replacement-style simplification: one home per rule. The three modes are defined once in
+  `SKILL.md`; review-contract semantics live in `independent-review.md`; pack format and
+  per-point checklists stay in `codex-review-pack.md`.
+- Compressed recovery, format-correction and new-cycle prose into lookup sections. No
+  script behavior, contract field, review gate or send-lock semantics changed.
+- Aligned the repeated-failure stop with the host rule (two failures without new evidence)
+  and added the exploratory-analysis exception to `project-work.md`.
+- Removed dangling references to the retired `academic-report-writing` skill.
+
 ## [6.2.0] - 2026-11-22
 
 - Clarify that autonomous and unattended progress has no plugin-level fixed round or
