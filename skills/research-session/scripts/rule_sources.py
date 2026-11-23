@@ -38,6 +38,11 @@ def _normalized(path: str) -> str:
     return os.path.normpath(os.path.abspath(path))
 
 
+def canonical(raw: bytes) -> bytes:
+    """Hash LF bytes regardless of the checkout's line-ending conversion."""
+    return raw.replace(b"\r\n", b"\n")
+
+
 def paths(root: str, reference: str | None = None) -> list[str]:
     base = _normalized(root)
     result = [_normalized(os.path.join(base, name)) for name in RULE_FILES]
@@ -52,5 +57,5 @@ def digest(root: str, reference: str | None = None) -> str:
     value = hashlib.sha256()
     for path in paths(root, reference):
         with open(path, "rb") as handle:
-            value.update(handle.read())
+            value.update(canonical(handle.read()))
     return value.hexdigest()

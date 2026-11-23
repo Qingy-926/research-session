@@ -1,6 +1,7 @@
 """The rules digest must cover every file that changes review criteria or continuation."""
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -48,3 +49,14 @@ def test_reference_argument_does_not_duplicate_a_bound_file():
     resolved = rule_sources.paths(str(SKILL), str(reference))
     assert len(resolved) == len({os.path.normcase(path) for path in resolved})
     assert rule_sources.digest(str(SKILL), str(reference)) == rule_sources.digest(str(SKILL))
+
+
+def test_digest_is_line_ending_independent(tmp_path):
+    copied = tmp_path / "skill"
+    shutil.copytree(SKILL, copied, ignore=shutil.ignore_patterns("__pycache__"))
+    reference = copied / "references" / "codex-review-pack.md"
+    before = rule_sources.digest(str(copied), str(reference))
+    for name in rule_sources.RULE_FILES:
+        path = copied / name
+        path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    assert rule_sources.digest(str(copied), str(reference)) == before
