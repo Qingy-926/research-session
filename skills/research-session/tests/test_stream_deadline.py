@@ -194,12 +194,7 @@ class StreamDeadlineTest(unittest.TestCase):
 
 class ResponseContractTest(unittest.TestCase):
     def test_prior_transport_version_can_continue_only_with_explicit_binding(self):
-        files = ['scripts/audit_dispatch.py', 'references/codex-review-pack.md', 'SKILL.md', 'references/autonomy-bounds.md', 'references/review-evidence.md', 'scripts/review_evidence.py', 'scripts/review_ledger.py', 'scripts/review_format.py', 'scripts/review_task.py', 'references/project-work.md', 'references/preregistration.md', 'references/independent-review.md', 'references/autonomous-start.md', 'references/retrieval-evidence.md', 'references/claim-evidence.md']
-        digest = hashlib.sha256()
-        for name in files:
-            digest.update((ROOT / name).read_bytes())
-        manifest = (ROOT / 'references/review-rules-compatibility.json').read_bytes()
-        binding = {'rules_sha256': digest.hexdigest(), 'compatibility_manifest_sha256': hashlib.sha256(manifest).hexdigest()}
+        binding = dispatch.rules_binding(str(ROOT / 'references' / 'codex-review-pack.md'))
         old = 'bc3bc3a47b5de01aa2e459b85076cffbf15cdb3de8e6023cc9d14aa80852e901'
         self.assertEqual(dispatch.compatible_rules_transition(old, binding)['previous_rules_sha256'], old)
 

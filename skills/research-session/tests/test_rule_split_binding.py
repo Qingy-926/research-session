@@ -40,7 +40,8 @@ class SplitRuleBindingTest(unittest.TestCase):
                 "files": [{"path": str(source), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}]}), encoding="utf-8")
             args = argparse.Namespace(inputs=str(manifest), pack=str(root / "pack.md"),
                 reference=str(copied / "references" / "codex-review-pack.md"), point=1)
-            for name in ("project-work.md", "preregistration.md", "independent-review.md", "autonomous-start.md"):
+            for name in ("project-work.md", "preregistration.md", "independent-review.md", "autonomous-start.md",
+                         "paper-audit.md", "manuscript-writing.md"):
                 with self.subTest(reference=name):
                     reference = copied / "references" / name
                     before = audit.make_binding(args, "fixture-review-model", "0" * 64)["rules_sha256"]

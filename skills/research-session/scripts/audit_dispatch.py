@@ -47,6 +47,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 review_evidence = importlib.import_module("review_evidence")
 review_ledger = importlib.import_module("review_ledger")
+rule_sources = importlib.import_module("rule_sources")
 run_manifest = importlib.import_module("run_manifest")
 
 DEFAULT_PORT = None
@@ -910,22 +911,9 @@ def rules_binding(reference: str):
     evidence_path = review_evidence.__file__
     if not isinstance(evidence_path, str):
         raise ValueError("review_evidence模块没有可绑定的源码路径")
-    rules = [os.path.abspath(__file__), reference, os.path.join(root, "SKILL.md"),
-             os.path.join(root, "references", "autonomy-bounds.md"),
-             os.path.join(root, "references", "review-evidence.md"), evidence_path,
-             os.path.join(root, "scripts", "review_ledger.py")]
-    rules.append(os.path.join(root, "scripts", "review_format.py"))
-    rules.append(os.path.join(root, "scripts", "review_task.py"))
-    # Guidance extracted from SKILL.md remains part of the trusted review rules.
-    rules.extend(os.path.join(root, "references", name) for name in
-                 ("project-work.md", "preregistration.md", "independent-review.md", "autonomous-start.md",
-                  "retrieval-evidence.md", "claim-evidence.md"))
-    digest = hashlib.sha256()
-    for path in rules:
-        with open(path, "rb") as fh:
-            digest.update(fh.read())
+    digest = rule_sources.digest(root, reference)
     manifest_path = os.path.join(root, "references", "review-rules-compatibility.json")
-    return {"rules_sha256": digest.hexdigest(),
+    return {"rules_sha256": digest,
             "compatibility_manifest_sha256": sha256_hex(open_bytes(manifest_path))}
 
 

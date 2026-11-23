@@ -9,28 +9,16 @@ import pytest
 
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "research-session"
 MANIFEST = SKILL / "references" / "review-rules-compatibility.json"
+sys.path.insert(0, str(SKILL / "scripts"))
+import rule_sources
+
 PRE_TRANSLATION = "d26e77daa65d168d2e8c4bf1293243548b50d8d821dd08c3e8b38bb938a4d9f6"
 PREVIOUS_V215 = "9bdc84e68489b4c78d7b27627e86edb80a8c43c44e1d470d9442214677090670"
 PREVIOUS_V530 = "8e3b401014c98a9cffd055525bcc57c00ba75a177f2c0c787c19afed5456f105"
 PREVIOUS_V600 = "d2033a26e563685d060b699c254ae94e5a13f6e03a49e73ee925f3332064f2a0"
 PREVIOUS_V610 = "3ee3b2e61abd2574b7c6d6563f5b86904c4f8a4c4ea2901e0f92c5095c7bc280"
-BOUND_FILES = [
-    "scripts/audit_dispatch.py",
-    "references/codex-review-pack.md",
-    "SKILL.md",
-    "references/autonomy-bounds.md",
-    "references/review-evidence.md",
-    "scripts/review_evidence.py",
-    "scripts/review_ledger.py",
-    "scripts/review_format.py",
-    "scripts/review_task.py",
-    "references/project-work.md",
-    "references/preregistration.md",
-    "references/independent-review.md",
-    "references/autonomous-start.md",
-    "references/retrieval-evidence.md",
-    "references/claim-evidence.md",
-]
+PREVIOUS_V640 = "885c93901e2010d6eeb2e441ca977b70e671179da2313c7d1fa75f0ffffbc1bf"
+BOUND_FILES = list(rule_sources.RULE_FILES)
 
 
 @pytest.fixture
@@ -44,11 +32,9 @@ def dispatch(monkeypatch):
 
 @pytest.fixture
 def binding():
-    digest = hashlib.sha256()
-    for name in BOUND_FILES:
-        digest.update((SKILL / name).read_bytes())
     raw = MANIFEST.read_bytes()
-    return {"rules_sha256": digest.hexdigest(), "compatibility_manifest_sha256": hashlib.sha256(raw).hexdigest()}
+    return {"rules_sha256": rule_sources.digest(str(SKILL), str(SKILL / "references" / "codex-review-pack.md")),
+            "compatibility_manifest_sha256": hashlib.sha256(raw).hexdigest()}
 
 
 def test_translated_description_keeps_exact_pre_translation_compatibility(dispatch, binding):
@@ -95,6 +81,17 @@ def test_task_budget_fix_accepts_exact_v610_rules(dispatch, binding):
     transition = dispatch.compatible_rules_transition(PREVIOUS_V610, binding)
     assert transition["previous_rules_sha256"] == PREVIOUS_V610
     assert transition["current_rules_sha256"] == binding["rules_sha256"]
+
+
+def test_v640_receipt_accepts_the_narrower_rule_binding(dispatch, binding):
+    transition = dispatch.compatible_rules_transition(PREVIOUS_V640, binding)
+    assert transition["previous_rules_sha256"] == PREVIOUS_V640
+    assert transition["current_rules_sha256"] == binding["rules_sha256"]
+
+
+def test_point_three_criteria_files_are_bound():
+    for name in ("references/paper-audit.md", "references/manuscript-writing.md"):
+        assert name in rule_sources.RULE_FILES, name
 
 
 def test_compatibility_rejects_changed_manifest_after_binding(dispatch, binding, monkeypatch):

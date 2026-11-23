@@ -11,6 +11,30 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.4.1] - 2026-11-23
+
+### Fixed
+
+- Move `PYTHONPYCACHEPREFIX` to step scope so the CI workflow parses; add a `ci-ok`
+  aggregate job that fails when any offline matrix job fails, is cancelled, or is skipped.
+- Correct current-version declarations in installation and release documentation; keep
+  historical versions and build examples unchanged.
+- Bind the point-3 criteria references (`paper-audit.md`, `manuscript-writing.md`) to the
+  rules digest and centralize the bound-file list. Unknown rule changes still fail closed;
+  registered prior receipts continue only after evidence revalidation.
+- Redact internal model, gateway and project identifiers from compatibility reasons while
+  preserving hashes and continuation semantics.
+
+### Added
+
+- Local release preflight binds the source commit, test log hash, two builds, ZIP and
+  manifest hashes, and refuses publication before any installed entry changes.
+
+### Unverified
+
+- Remote CI execution, required branch checks, host installation and tag push remain
+  unverified in this local increment.
+
 ## [6.4.0] - 2026-11-22
 
 - Allow an explicitly approved continuation of a task, including after expiry. Verify

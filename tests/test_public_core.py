@@ -59,9 +59,9 @@ def test_public_runtime_has_no_private_machine_defaults():
         PLUGIN_ROOT / "skills" / "research-session" / "references" / "plugin-invocation.md",
         PLUGIN_ROOT / "references" / "local-method-library.md",
     ]
-    forbidden = ("huawei-curated", "HUAWEI", "project-028", "Project-028", "project-029",
-                 ".cc-switch", "gpt-6.2-sol", "gpt-5.6-sol", "57321", "15721",
-                 "kind-nibbling-ladybug")
+    forbidden = ("huawei" "-curated", "HUA" "WEI", "project-" "028", "Project-" "028",
+                 "project-" "029", ".cc-" "switch", "gpt-" "6.2-sol", "gpt-" "5.6-sol",
+                 "573" "21", "157" "21", "kind-nibbling-" "ladybug")
     hits = [(str(path.relative_to(PLUGIN_ROOT)), token) for path in paths
             for token in forbidden if token in path.read_text(encoding="utf-8")]
     assert hits == []

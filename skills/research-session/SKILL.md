@@ -5,7 +5,7 @@ description: Use when continuing a research project, designing or preregistering
 
 # 科研任务入口
 
-版本 v6.4.0（2026-11-22）：两种自主模式可用新的用户批准接续现有任务，沿用原起点、审查范围与累计请求额度。三种模式与轮次预算见 §2。
+版本 v6.4.1（2026-11-23）：本地整改发布前绑定、CI 解析修复与规则绑定收窄；复核合同、科研门和累积预算不变。
 
 ## §0 职责
 

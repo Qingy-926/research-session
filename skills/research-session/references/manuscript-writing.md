@@ -1,6 +1,6 @@
 # Research manuscript writing and acceptance
 
-For drafting, revising, and finalizing papers, research reviews, and research reports. Coursework reports use `academic-report-writing`. This reference adds writing decisions; it does not duplicate execution protocols or authorize experiments.
+For drafting, revising, and finalizing papers, research reviews, and research reports. Coursework reports are outside this skill. This reference adds writing decisions; it does not duplicate execution protocols or authorize experiments.
 
 ## Define this delivery
 

@@ -49,9 +49,10 @@ FORBIDDEN_CLAIMS = (
 )
 STATUS_MARKERS = ("尚未", "候选", "not yet", "candidate")
 # Same set as tests/test_public_core.py; no speculative additions.
-FORBIDDEN_TOKENS = ("huawei-curated", "HUAWEI", "project-028", "Project-028", "project-029",
-                    ".cc-switch", "gpt-6.2-sol", "gpt-5.6-sol", "57321", "15721",
-                    "kind-nibbling-ladybug")
+# Split literals keep the public artifact free of the private tokens themselves.
+FORBIDDEN_TOKENS = ("huawei" "-curated", "HUA" "WEI", "project-" "028", "Project-" "028",
+                    "project-" "029", ".cc-" "switch", "gpt-" "6.2-sol", "gpt-" "5.6-sol",
+                    "573" "21", "157" "21", "kind-nibbling-" "ladybug")
 
 
 def read(path):
@@ -77,18 +78,50 @@ def test_skill_inventory_matches_readme_capability_matrix():
 
 def test_manifests_and_skill_version_agree():
     manifests = {host: json.loads(read(path)) for host, path in MANIFESTS.items()}
+    version = manifests["codex"]["version"]
     for host, manifest in manifests.items():
-        assert manifest["version"] == "6.4.0", host
+        assert manifest["version"] == version, host
         assert manifest["license"] == "Apache-2.0", host
         assert manifest["repository"] == REPO_URL, host
     assert manifests["trae"] == manifests["codex"]
 
     skill_text = read(SKILLS / "research-session" / "SKILL.md")
-    assert "版本 v%s" % manifests["codex"]["version"] in skill_text
+    assert "版本 v%s" % version in skill_text
 
     changelog = read(ROOT / "CHANGELOG.md")
-    version = re.escape(manifests["codex"]["version"])
-    assert re.search(rf"^## \[{version}\](?:\s|$)", changelog, re.M), "missing current version section"
+    assert re.search(rf"^## \[{re.escape(version)}\](?:\s|$)", changelog, re.M), "missing current version section"
+
+
+def test_only_current_version_declarations_are_bound():
+    version = json.loads(read(MANIFESTS["codex"]))["version"]
+    declarations = {
+        "README.md": ("当前 **%s 本地候选**" % version, "Version **%s**" % version),
+        "docs/install.md": ("当前 `%s`" % version, "技能文件声明的 `%s`" % version),
+        "docs/versioning-release.md": ("当前源树为 **%s 本地候选**" % version,),
+        "skills/research-session/SKILL.md": ("版本 v%s" % version,),
+    }
+    for relative, expected in declarations.items():
+        text = read(ROOT / relative)
+        for marker in expected:
+            assert marker in text, (relative, marker)
+    # Historical examples stay readable; they are not current-version claims.
+    assert "research-session-6.3.0.zip" in read(ROOT / "docs" / "versioning-release.md")
+
+
+def test_generated_release_manifest_uses_the_current_version():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "docs_package_release", ROOT / "tools" / "package_release.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    version = module.artifact_version(ROOT)
+    files = module.collect_files(ROOT)
+    payload = module.build_archive(ROOT, files)
+    manifest = module.build_manifest(ROOT, version, files, payload)
+    assert manifest["version"] == version
+    assert manifest["archive"]["filename"] == "research-session-%s.zip" % version
+    assert manifest["file_count"] == len(files)
 
 
 def test_license_and_third_party_notices():

@@ -78,4 +78,5 @@ def test_audit_dispatch_writes_a_manifest_only_on_opt_in(tmp_path, monkeypatch):
     assert manifest["error"] == "provider_not_configured"
     assert manifest["config_sha256"] is None
     assert manifest["host"] == {"name": "unknown", "version": "unknown"}
-    assert manifest["component_versions"]["plugin"] == "6.4.0"
+    expected_version = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+    assert manifest["component_versions"]["plugin"] == expected_version

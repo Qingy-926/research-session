@@ -660,7 +660,7 @@ class ReviewClosureTest(unittest.TestCase):
         self.assertEqual(len(Proxy.requests), 1)
 
     def test_actual_appended_review_without_receipt_is_not_resubmitted(self):
-        pack = self.pack(text="# Review\n\n## 5. 复核结论（gpt-6.1-sol 于 2026-11-07 自动填写）\n旧意见。\n")
+        pack = self.pack(text="# Review\n\n## 5. 复核结论（fixture-review-model 于 2026-11-07 自动填写）\n旧意见。\n")
         run, data = self.invoke(pack)
         self.assertEqual(run.returncode, 2, run.stdout + run.stderr)
         self.assertFalse(data["gate_passed"])
@@ -1045,7 +1045,7 @@ class ReviewClosureTest(unittest.TestCase):
         self.update_manifest(extra=[record, receipt], review_id=new_id)
         pack = self.pack(
             "cycle2.md",
-            "# Cycle\n\n## 5. 复核结论（gpt-6.1-sol 于 2026-11-07 自动填写）\n旧意见。\n",
+            "# Cycle\n\n## 5. 复核结论（fixture-review-model 于 2026-11-07 自动填写）\n旧意见。\n",
         )
         before = len(Proxy.requests)
         run, data = self.invoke(pack, receipt, extra=["--new-cycle", str(record)])
