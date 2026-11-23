@@ -929,7 +929,7 @@ def rules_binding(reference: str):
             "compatibility_manifest_sha256": sha256_hex(open_bytes(manifest_path))}
 
 
-def make_binding(args: argparse.Namespace, model: str, body_sha: str):
+def make_binding(args: argparse.Namespace, model: str, body_sha: str, *, for_send: bool = True):
     options = cast(dict[str, object], vars(args))
     inputs_path, pack_path, reference, point = (options[name] for name in ("inputs", "pack", "reference", "point"))
     if (not isinstance(inputs_path, str) or not isinstance(pack_path, str)
@@ -948,7 +948,8 @@ def make_binding(args: argparse.Namespace, model: str, body_sha: str):
     if getattr(args, "task_approval", None):
         import review_task
         scope = review_ledger.validate_scope(pack_path, result)
-        result["task_approval"] = review_task.validate(args.task_approval, result, scope, args.timeout)
+        result["task_approval"] = review_task.validate(
+            args.task_approval, result, scope, args.timeout, for_send=for_send)
     return result
 
 
@@ -2090,17 +2091,17 @@ def _main(offline_transport=None):
     try:
         if unattended:
             review_ticket(args.unattended_state, args.unattended_action, args, binding, publish=True)
-        if make_binding(args, model, body_sha) != binding:
-            raise ValueError("送审期间输入/规则发生变化")
         with open(args.pack, "rb") as fh:
             if fh.read() != original:
                 raise ValueError("送审期间复核包发生并行变化")
         review_evidence.lint_pack(original, binding)
+        now = datetime.datetime.now().astimezone()
+        if make_binding(args, model, body_sha, for_send=False) != binding:
+            raise ValueError("送审期间输入/规则发生变化")
     except (ValueError, OSError, KeyError, TypeError) as exc:
         emit({"ok": False, "stage": "verify_binding", "error": str(exc)}, 2)
 
     # ---- 4. 追加（不改正文）----
-    now = datetime.datetime.now().astimezone()
     ts = now.strftime("%Y-%m-%d %H:%M:%S%z")
     block = (
         "\n\n---\n\n"
@@ -2148,7 +2149,8 @@ def _main(offline_transport=None):
                 "pack_lint": pack_lint, "attempt_receipts": attempt_paths,
                 "output_budget": {"first_cap": args.max_output_tokens, "truncation_retry_cap": args.retry_truncated_tokens,
                                   "effective_cap": cap, "http_attempt_limit_per_send": RETRY_ATTEMPTS},
-                "binding": binding, "report": report, "error": validation_error, "created_at": ts,
+                "binding": binding, "report": report, "error": validation_error,
+                "created_at": now.isoformat() if args.task_approval else ts,
                 "previous": None if new_cycle else (os.path.abspath(args.previous) if args.previous else None),
                 "new_cycle": new_cycle or (previous.get("new_cycle") if previous else None),
                 "recovered_previous": recovered_previous or (

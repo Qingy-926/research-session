@@ -147,7 +147,7 @@ def validate_receipt(receipt, chain):
         raise ValueError("receipt is outside its bound task approval window")
 
 
-def validate(path, binding, scope, timeout, entries=None):
+def validate(path, binding, scope, timeout, entries=None, *, for_send=True):
     chain = approval_chain(path, binding["files"])
     data, sha, effective, deadline = chain[identity(path)]
     if (data.get("project_id") != scope["project_id"]
@@ -158,8 +158,8 @@ def validate(path, binding, scope, timeout, entries=None):
             or binding["point"] not in data["points"]):
         raise ValueError("task approval does not cover this project/object/point")
     now = dt.datetime.now(dt.timezone.utc)
-    if (not effective <= now < deadline
-            or timeout <= 0 or (deadline - now).total_seconds() < timeout + data["closeout_seconds"]):
+    if (not effective <= now < deadline or
+            (for_send and (timeout <= 0 or (deadline - now).total_seconds() < timeout + data["closeout_seconds"]))):
         raise ValueError("task time/request budget exhausted or insufficient closeout time")
     if entries is not None:
         # Count all project sends since task start, including legacy sends and failed

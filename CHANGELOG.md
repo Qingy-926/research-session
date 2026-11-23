@@ -16,6 +16,9 @@ published yet; the entries below describe the source tree only.
 - Allow an explicitly approved continuation of a task, including after expiry. Verify
   linked approvals and historical receipt windows before sending, and retain the
   original count start, cumulative request limit, review scope, and receipt chain.
+- Check the send time and closeout reserve before dispatch. When recording a response,
+  recheck the active approval window and evidence, and preserve fractional seconds
+  so receipts remain verifiable when approval and response occur in the same second.
 
 ## [6.3.0] - 2026-11-22
 

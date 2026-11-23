@@ -2,8 +2,11 @@
 
 import datetime as dt
 import concurrent.futures
+import contextlib
 import hashlib
+import io
 import json
+from pathlib import Path
 import subprocess
 import sys
 import unittest
@@ -71,6 +74,73 @@ class TaskReviewTest(unittest.TestCase):
         if previous:
             value["closed_findings"] = [{"id": "B1", "status": "未解决", "evidence": "Verified repair still needs judgment."}]
         closure.Proxy.response = value
+
+    def invoke_with_clock(self, pack, approval, clock, after_response):
+        sys.path.insert(0, str(closure.ROOT / "scripts"))
+        self.addCleanup(sys.path.remove, str(closure.ROOT / "scripts"))
+        import audit_dispatch
+
+        base = dt.datetime
+
+        class Clock(base):
+            @classmethod
+            def now(cls, tz=None):
+                return clock[0].astimezone(tz).replace(tzinfo=tz)
+
+        post = audit_dispatch.responses_post
+
+        def advance_after_post(*args, **kwargs):
+            response = post(*args, **kwargs)
+            clock[0] = after_response
+            return response
+
+        argv = [str(closure.SCRIPT), "--pack", str(pack), "--point", "1",
+                "--port", str(self.server.server_port), "--no-stream", "--inputs",
+                str(self.manifest), "--task-approval", str(approval), "--timeout", "5"]
+        messages = io.StringIO()
+        with (patch.object(dt, "datetime", Clock), patch.object(sys, "argv", argv),
+              patch.object(audit_dispatch, "responses_post", side_effect=advance_after_post),
+              contextlib.redirect_stdout(messages), self.assertRaises(SystemExit) as stopped):
+            audit_dispatch.main()
+        return stopped.exception.code, json.loads(messages.getvalue())
+
+    def test_valid_response_does_not_need_a_second_full_send_budget(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        deadline = now + dt.timedelta(seconds=66)
+        approval = self.approval(deadline=deadline.isoformat())
+        self.update_manifest(extra=self.approval_files)
+        code, result = self.invoke_with_clock(
+            self.pack(), approval, [now], now + dt.timedelta(seconds=3))
+        self.assertEqual(len(closure.Proxy.requests), 1)
+        self.assertEqual(code, 0, result)
+        self.assertTrue(result["gate_passed"])
+
+    def test_late_response_still_cannot_publish_a_receipt(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        deadline = now + dt.timedelta(seconds=66)
+        approval = self.approval(deadline=deadline.isoformat())
+        self.update_manifest(extra=self.approval_files)
+        pack = self.pack()
+        before = pack.read_bytes()
+        code, result = self.invoke_with_clock(pack, approval, [now], deadline)
+        self.assertEqual(len(closure.Proxy.requests), 1)
+        self.assertEqual(code, 2, result)
+        self.assertEqual(result["stage"], "verify_binding")
+        self.assertEqual(pack.read_bytes(), before)
+        self.assertFalse(pack.with_suffix(".md.review.json").exists())
+
+    def test_same_second_receipt_is_valid_in_its_approval_window(self):
+        now = dt.datetime.now(dt.timezone.utc).replace(microsecond=500000)
+        started = now - dt.timedelta(microseconds=250000)
+        approval = self.approval(started_at=started.isoformat())
+        self.update_manifest(extra=self.approval_files)
+        code, result = self.invoke_with_clock(self.pack(), approval, [now], now)
+        self.assertEqual(code, 0, result)
+        import review_task
+
+        receipt = json.loads(Path(result["receipt"]).read_bytes())
+        chain = review_task.approval_chain(str(approval), receipt["binding"]["files"])
+        review_task.validate_receipt(receipt, chain)
 
     def test_task_continues_same_id_past_two_rounds_in_both_modes(self):
         for mode in ("autonomous", "unattended"):
