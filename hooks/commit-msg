@@ -1,0 +1,46 @@
+#!/bin/sh
+# commit-msg（工作区通用模板）
+# 拦截：提交信息不符合 refs/git.md §4 的 `<type>(<scope>): <主题>` 规范。
+# 启用：git config core.hooksPath <仓库根>/hooks（本设置不随 clone 分发，新克隆需重设）
+# 原则：守卫零误报。改本文件必须重跑 refs/git/git_audit.py --selftest 的反例用例。
+# 临时绕过：git commit --no-verify —— 绕过须按 refs/git.md §14 在提交信息登记理由。
+MSG_FILE="$1"
+
+# 取第一条非注释、非空行作为标题行；去掉 UTF-8 BOM 与首尾空白
+# （Windows PowerShell 写文件默认带 BOM，会造成误拒）
+subject=$(grep -v '^#' "$MSG_FILE" | sed '/^[[:space:]]*$/d' | head -n 1 \
+  | sed '1s/^\xEF\xBB\xBF//' | sed '1s/^[[:space:]]*//;1s/[[:space:]]*$//')
+
+# merge/revert/fixup/squash 提交由 git 自动生成，放行
+case "$subject" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*) exit 0 ;;
+esac
+
+if ! printf '%s' "$subject" | grep -Eq '^(feat|fix|docs|data|refactor|test|chore|build|ci|perf|revert)(\([a-z0-9._/-]+\))?!?: .+'; then
+  echo "commit-msg: 提交信息不符合规范，拒绝提交。" >&2
+  echo "" >&2
+  echo "  实际标题行：$subject" >&2
+  echo "" >&2
+  echo "  要求格式：<type>(<scope>): <主题>" >&2
+  echo "  允许 type：feat fix docs data refactor test chore build ci perf revert" >&2
+  echo "  （不用 style：纯格式化改动并入对应逻辑改动，避免噪声提交）" >&2
+  echo "" >&2
+  echo "  正例：docs(034): 收录 20261114 Git 防护补齐验收证据" >&2
+  echo "        chore: 补 .gitignore 本地索引排除规则" >&2
+  echo "  反例：update readme            （缺 type: 前缀）" >&2
+  echo "        Docs: 收录证据            （type 须小写）" >&2
+  echo "        docs:收录证据             （冒号后缺空格）" >&2
+  echo "" >&2
+  echo "  确需强行提交：git commit --no-verify（绕过须按 refs/git.md §14 登记理由）" >&2
+  exit 1
+fi
+
+case "$subject" in
+  *.|*。)
+    echo "commit-msg: 标题末尾不加句号，拒绝提交。" >&2
+    echo "  实际标题行：$subject" >&2
+    echo "  处理：去掉标题末尾的 . 或 。；标题只说做了什么、为什么。" >&2
+    exit 1
+    ;;
+esac
+exit 0

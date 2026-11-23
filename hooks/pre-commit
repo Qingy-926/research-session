@@ -1,0 +1,53 @@
+#!/bin/sh
+# pre-commit（工作区通用模板）
+# 用法：复制到 <仓库根>/hooks/pre-commit，并在 <仓库根>/hooks/gate.conf 写本仓参数。
+# 启用：git config core.hooksPath <仓库根>/hooks（本设置不随 clone 分发，新克隆需重设）
+# 原则：守卫零误报。改本文件必须重跑 refs/git/git_audit.py --selftest 的反例用例。
+# 临时绕过：git commit --no-verify —— 绕过须按 refs/git.md §14 在提交信息登记理由。
+#
+# 拦截项：
+#   1) 单文件超过 MAX_FILE_BYTES（GitHub 硬限 100MB，留 10MB 余量）
+#   2) 可选静态检查（STATIC_CHECK_CMD）
+set -e
+
+HOOK_DIR=$(dirname "$0")
+CONF="$HOOK_DIR/gate.conf"
+[ -f "$CONF" ] || CONF="$HOOK_DIR/gate.conf.example"
+[ -f "$CONF" ] || { echo "pre-commit: 找不到 gate.conf，守卫未生效" >&2; exit 1; }
+
+# shellcheck disable=SC1090
+. "$CONF"
+
+MAX_FILE_BYTES=${MAX_FILE_BYTES:-94371840}
+STATIC_CHECK_CMD=${STATIC_CHECK_CMD:-}
+
+violations=$(mktemp)
+: > "$violations"
+tmp_list=$(mktemp)
+git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR -z > "$tmp_list"
+
+while IFS= read -r -d '' f; do
+  sz=$(git cat-file -s ":$f" 2>/dev/null || echo 0)
+  if [ "$sz" -gt "$MAX_FILE_BYTES" ]; then
+    printf '%s (%s bytes)\n' "$f" "$sz" >> "$violations"
+  fi
+done < "$tmp_list"
+rm -f "$tmp_list"
+
+if [ -s "$violations" ]; then
+  echo "pre-commit: 以下暂存文件超过 ${MAX_FILE_BYTES} 字节，拒绝提交：" >&2
+  cat "$violations" >&2
+  echo "处理：大产物移出暂存并加入 .gitignore（哈希锚点登记在 manifest）；确需强行提交用 git commit --no-verify。" >&2
+  rm -f "$violations"
+  exit 1
+fi
+rm -f "$violations"
+
+if [ -n "$STATIC_CHECK_CMD" ]; then
+  if ! eval "$STATIC_CHECK_CMD"; then
+    echo "pre-commit: 静态检查未通过（STATIC_CHECK_CMD），拒绝提交。" >&2
+    echo "处理：按上方检查器输出修正；确需强行提交用 git commit --no-verify 并登记理由。" >&2
+    exit 1
+  fi
+fi
+exit 0

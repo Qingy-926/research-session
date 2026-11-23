@@ -1,0 +1,148 @@
+#!/bin/sh
+# pre-push（工作区通用模板）
+# 拦截：
+#   1) 目标远端未在 gate.conf 的 ALLOWED_REMOTES 中登记（防止误推到陌生/公开远端）
+#   2) 本次推送新增的对象中存在单文件超过 MAX_FILE_BYTES
+#   3) 本次推送涉及的文件命中常见凭据模式
+#
+# 用法：复制到 <仓库根>/hooks/pre-push，并在 <仓库根>/hooks/gate.conf 写本仓参数。
+# 启用：git config core.hooksPath <仓库根>/hooks（本设置不随 clone 分发，新克隆需重设）
+# 原则：守卫零误报。改本文件必须重跑 refs/git/git_audit.py --selftest 的反例用例。
+#
+# 2026-11-14 修复：旧版把 pre-push 的位置参数当作 ref 区间（$2..$3），
+# 实际参数是「远端名 远端 URL」，导致体积与凭据扫描静默失效。现按 Git 约定
+# 从 stdin 读取 <local ref> <local sha> <remote ref> <remote sha>。
+set -e
+
+HOOK_DIR=$(dirname "$0")
+CONF="$HOOK_DIR/gate.conf"
+[ -f "$CONF" ] || CONF="$HOOK_DIR/gate.conf.example"
+[ -f "$CONF" ] || { echo "pre-push: 找不到 gate.conf，守卫未生效" >&2; exit 1; }
+
+# shellcheck disable=SC1090
+. "$CONF"
+
+MAX_FILE_BYTES=${MAX_FILE_BYTES:-94371840}
+ALLOWED_REMOTES=${ALLOWED_REMOTES:-}
+SECRET_PATTERN=${SECRET_PATTERN:-"(gh[po]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)"}
+
+remote_name=${1:-origin}
+remote_url=$(git remote get-url --push "$remote_name" 2>/dev/null || echo "")
+if [ -z "$remote_url" ]; then
+  echo "pre-push: 取不到远端 $remote_name 的推送地址，拒绝推送" >&2
+  exit 1
+fi
+
+# 远端登记：ALLOWED_REMOTES 支持三种写法
+#   - 远端名（origin）
+#   - 仓库名/路径末段（ecg-identity-ptb）
+#   - URL 或路径前缀（https://github.com/Qingy-926/）
+# 匹配按路径边界，避免 `ecg-identity-ptb-malicious` 命中 `ecg-identity-ptb`。
+if [ -n "$ALLOWED_REMOTES" ]; then
+  ok=0
+  remote_url_norm=$(printf '%s' "$remote_url" | sed 's|\\|/|g')
+  url_base=${remote_url_norm%.git}
+  url_base=${url_base%/}
+  for allowed in $ALLOWED_REMOTES; do
+    [ -z "$allowed" ] && continue
+    allowed_norm=$(printf '%s' "$allowed" | sed 's|\\|/|g')
+    allowed_base=${allowed_norm%.git}
+    allowed_base=${allowed_base%/}
+    case "$allowed_norm" in
+      *://*|*/*|*\\*)
+        case "$remote_url_norm" in "$allowed_norm"*) ok=1 ;; esac
+        case "$url_base" in "$allowed_base"|"$allowed_base"/*) ok=1 ;; esac
+        ;;
+      *)
+        [ "$allowed" = "$remote_name" ] && ok=1
+        case "$url_base" in "$allowed_base"|*/"$allowed_base") ok=1 ;; esac
+        ;;
+    esac
+  done
+  if [ "$ok" -ne 1 ]; then
+    echo "pre-push: 远端 $remote_name（$remote_url）未在 gate.conf 的 ALLOWED_REMOTES 中登记，拒绝推送。" >&2
+    echo "登记私有远端后再推；转公开需用户单独授权并先做全历史秘密扫描。" >&2
+    exit 1
+  fi
+fi
+
+# 先把 stdin 的 ref 行完整读入临时文件，避免后续 git 子进程消费 stdin。
+tmp_refs=$(mktemp)
+cat > "$tmp_refs"
+
+tmp_objects=$(mktemp)
+: > "$tmp_objects"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_ref" ] && continue
+  # 全 0 的 local sha 表示删除远端 ref，没有对象要传。
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+  if [ -z "$remote_sha" ] || [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    if ! git rev-list --objects "$local_sha" >> "$tmp_objects" 2>/dev/null; then
+      echo "pre-push: 无法枚举 $local_ref 的推送对象，拒绝推送" >&2
+      rm -f "$tmp_refs" "$tmp_objects"
+      exit 1
+    fi
+  else
+    if ! git rev-list --objects "$remote_sha..$local_sha" >> "$tmp_objects" 2>/dev/null; then
+      echo "pre-push: 无法枚举 $local_ref 的推送对象，拒绝推送" >&2
+      rm -f "$tmp_refs" "$tmp_objects"
+      exit 1
+    fi
+  fi
+done < "$tmp_refs"
+rm -f "$tmp_refs"
+
+# 去重；第三列之后属于路径本身（允许路径含空格）。只有对象 SHA 的行也保留：
+# tag 直接指向 blob 时 rev-list 可能不给出路径，不能因此跳过体积/凭据检查。
+tmp_list=$(mktemp)
+sort -u "$tmp_objects" > "$tmp_list"
+rm -f "$tmp_objects"
+
+# 1) 体积闸门（所有对象，含无路径的 blob/tag）
+while read -r sha path; do
+  [ -z "$sha" ] && continue
+  if ! sz=$(git cat-file -s "$sha" 2>/dev/null); then
+    echo "pre-push: 无法读取对象 $sha 的大小，拒绝推送" >&2
+    rm -f "$tmp_list"
+    exit 1
+  fi
+  label=${path:-object:$sha}
+  if [ "$sz" -gt "$MAX_FILE_BYTES" ]; then
+    echo "pre-push: $label（$sz bytes）超过 ${MAX_FILE_BYTES} 字节，拒绝推送：" >&2
+    rm -f "$tmp_list"
+    exit 1
+  fi
+done < "$tmp_list"
+
+# 2) 凭据扫描（只扫 blob；二进制与密钥容器按策略处理）
+while read -r sha path; do
+  [ -z "$sha" ] && continue
+  obj_type=$(git cat-file -t "$sha" 2>/dev/null || echo "")
+  [ "$obj_type" = "blob" ] || continue
+  label=${path:-object:$sha}
+  case "$path" in
+    *.p12|*.jks|*.keystore)
+      echo "pre-push: $label 是密钥容器格式，默认拒绝推送；如确需入库，先做全历史扫描并登记例外。" >&2
+      rm -f "$tmp_list"
+      exit 1
+      ;;
+    *.png|*.jpg|*.jpeg|*.gif|*.webp|*.bmp|*.pdf|*.zip|*.gz|*.tgz|*.tar|*.7z|*.rar|\
+    *.pt|*.pth|*.npz|*.npy|*.hdf5|*.h5|*.db|*.sqlite|*.sqlite3|\
+    *.so|*.dll|*.exe|*.bin|*.woff|*.woff2|*.ttf|*.mp4|*.wav|\
+    *.pptx|*.docx|*.xlsx|*.ppt|*.doc|*.xls|*.whl|*.egg|*.jar|*.class|*.o|*.obj|\
+    *.onnx|*.safetensors|*.pkl|*.joblib|*.lock|*.dmg|*.iso) continue ;;
+  esac
+  if git cat-file blob "$sha" 2>/dev/null | grep -aEq "$SECRET_PATTERN"; then
+    echo "pre-push: $label 命中凭据模式，拒绝推送：" >&2
+    echo "  模式：$SECRET_PATTERN" >&2
+    echo "  处理：从暂存区与工作树移除该内容；若已入历史，改写历史并另立方案。" >&2
+    rm -f "$tmp_list"
+    exit 1
+  fi
+done < "$tmp_list"
+
+rm -f "$tmp_list"
+exit 0
