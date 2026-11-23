@@ -22,10 +22,10 @@ jobs:
         python-version: ["3.10", "3.13"]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -62,7 +62,7 @@ jobs:
         run: python -c "import pathlib; print(''.join(p.read_text(encoding='utf-8') for p in sorted(pathlib.Path('dist').glob('*.sha256'))), end='')"
 
       - name: Upload release package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: research-session-${{ matrix.os }}-py${{ matrix.python-version }}
           path: dist/

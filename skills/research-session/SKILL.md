@@ -5,7 +5,7 @@ description: Use when continuing a research project, designing or preregistering
 
 # 科研任务入口
 
-版本 v6.4.3（2026-11-23）：修复验证记录与文件修改时间精度不一致导致的证据时效误判。
+版本 v6.4.4（2026-11-23）：GitHub Actions 切换至 Node.js 24。
 
 ## §0 职责
 

@@ -11,6 +11,13 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.4.4] - 2026-11-23
+
+### Fixed
+
+- Use Node.js 24 versions of checkout, setup-python, and upload-artifact in
+  GitHub Actions.
+
 ## [6.4.3] - 2026-11-23
 
 ### Fixed
