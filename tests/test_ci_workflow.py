@@ -38,6 +38,7 @@ def test_offline_matrix_cannot_be_skipped_or_shrunk():
     text = read_workflow()
     offline = block(text, "  offline:\n", "  ci-ok:\n")
     assert not re.search(r"^    if:", offline, re.M), "offline job must not be conditionally skipped"
+    assert "continue-on-error" not in offline, "offline failures must not be masked"
     assert "os: [windows-latest, ubuntu-latest]" in offline
     assert 'python-version: ["3.10", "3.13"]' in offline
     assert "fail-fast: false" in offline
