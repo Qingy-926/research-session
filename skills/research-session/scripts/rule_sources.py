@@ -34,11 +34,15 @@ RULE_FILES = (
 )
 
 
+def _normalized(path: str) -> str:
+    return os.path.normpath(os.path.abspath(path))
+
+
 def paths(root: str, reference: str | None = None) -> list[str]:
-    base = os.path.abspath(root)
-    result = [os.path.join(base, name) for name in RULE_FILES]
+    base = _normalized(root)
+    result = [_normalized(os.path.join(base, name)) for name in RULE_FILES]
     if reference:
-        candidate = os.path.abspath(reference)
+        candidate = _normalized(reference)
         if candidate not in result:
             result.append(candidate)
     return result

@@ -20,7 +20,8 @@ published yet; the entries below describe the source tree only.
 - Correct current-version declarations in installation and release documentation; keep
   historical versions and build examples unchanged.
 - Bind the point-3 criteria references (`paper-audit.md`, `manuscript-writing.md`) to the
-  rules digest and centralize the bound-file list. Unknown rule changes still fail closed;
+  rules digest and centralize the bound-file list. Normalize bound paths so Windows and
+  POSIX checkouts hash each file exactly once. Unknown rule changes still fail closed;
   registered prior receipts continue only after evidence revalidation.
 - Redact internal model, gateway and project identifiers from compatibility reasons while
   preserving hashes and continuation semantics.

@@ -1,5 +1,6 @@
 """The rules digest must cover every file that changes review criteria or continuation."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -40,3 +41,10 @@ def test_criteria_references_exist_in_the_tree():
 def test_every_bound_file_exists():
     for name in rule_sources.RULE_FILES:
         assert (SKILL / name).is_file(), name
+
+
+def test_reference_argument_does_not_duplicate_a_bound_file():
+    reference = SKILL / "references" / "codex-review-pack.md"
+    resolved = rule_sources.paths(str(SKILL), str(reference))
+    assert len(resolved) == len({os.path.normcase(path) for path in resolved})
+    assert rule_sources.digest(str(SKILL), str(reference)) == rule_sources.digest(str(SKILL))
