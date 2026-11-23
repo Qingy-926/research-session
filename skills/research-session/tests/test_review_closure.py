@@ -9,6 +9,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -572,7 +573,8 @@ class ReviewClosureTest(unittest.TestCase):
                                    "guard_id": sent["guard_id"],
                                    "pack_sha256": sent["binding"]["pack_sha256"]}), encoding="utf-8")
         import datetime
-        moment = datetime.datetime.fromisoformat(sent["created_at"]).timestamp() - 1
+        moment = datetime.datetime.fromisoformat(
+            re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", sent["created_at"])).timestamp() - 1
         os.utime(lock, (moment, moment))
         home = os.environ["RESEARCH_SESSION_LEDGER_DIR"]
         scope = {"project_id": ledger.project_identity(self.project),

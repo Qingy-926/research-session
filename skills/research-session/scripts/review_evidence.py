@@ -30,6 +30,7 @@ def identity(path):
 def timestamp(value):
     if not isinstance(value, str):
         raise ValueError("timestamp must be an ISO timestamp with timezone")
+    value = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value)
     parsed = datetime.datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         raise ValueError("timestamp timezone is required")

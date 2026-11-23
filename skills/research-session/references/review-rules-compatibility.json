@@ -1,5 +1,5 @@
 {
-  "current_rules_sha256": "82620013362cf2cad87509fd22a139749c727809c10950fcd3bf8b2477a8b13a",
+  "current_rules_sha256": "bc8113e83bbb0e423124ad947ad0aed30692c633e89f765f3a143c91d0a553d7",
   "compatible_previous": {
     "885c93901e2010d6eeb2e441ca977b70e671179da2313c7d1fa75f0ffffbc1bf": "6.4.1 binds the point-3 criteria references (paper-audit.md, manuscript-writing.md), centralizes the rule-source list, removes a stale retired-skill reference and corrects current-version documentation. Review contracts, original receipts, verdicts and blockers, model/effort, three scientific gates, send locks, round limits and cumulative task budgets are unchanged. Compatibility only allows bounded continuation after revalidating original evidence; it neither inherits a pass nor authorizes sending.",
     "b3abdbfec613f5a44f4c6b7f8b91ad4cc6e87e47d698884298eb699c7b68e679": "6.4.0 candidate follow-up separates send-time reservation from receipt-time evidence revalidation and records task receipt timestamps at full precision. No scope, budget, input, report, or decision gate changes. Prior receipts are revalidated as written.",

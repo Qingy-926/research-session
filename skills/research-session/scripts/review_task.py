@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 
 import review_evidence
 
@@ -14,7 +15,7 @@ def identity(path):
 
 
 def timestamp(value):
-    result = dt.datetime.fromisoformat(value)
+    result = dt.datetime.fromisoformat(re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value))
     if result.tzinfo is None:
         raise ValueError("task timestamps require a timezone")
     return result

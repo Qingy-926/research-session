@@ -26,6 +26,8 @@ published yet; the entries below describe the source tree only.
   revalidation.
 - Redact internal model, gateway and project identifiers from compatibility reasons while
   preserving hashes and continuation semantics.
+- Restore Python 3.10 support: replace `hashlib.file_digest` and normalize `+HHMM`
+  offsets before `datetime.fromisoformat`.
 
 ### Added
 

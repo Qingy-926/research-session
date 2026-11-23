@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -70,7 +71,10 @@ def controller_sha():
 
 def sha256(path):
     with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        digest = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+        return digest.hexdigest()
 
 
 def read_card(path, existing_state=None):
@@ -713,7 +717,8 @@ def operate(connection, state, args):
             except (RunError, ValueError, OSError, KeyError, TypeError) as exc:
                 outcome = "uncertain"
                 record(connection, "DIAGNOSTIC", args.action, str(exc))
-            if row["claimed_at"] and (datetime.now(timezone.utc) - datetime.fromisoformat(row["claimed_at"])).total_seconds() > action["watchdog_seconds"]:
+            if row["claimed_at"] and (datetime.now(timezone.utc) - datetime.fromisoformat(
+                    re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", row["claimed_at"]))).total_seconds() > action["watchdog_seconds"]:
                 outcome = "uncertain"
             if outcome == "succeeded":
                 targets = [write_path(name, run, option) for name in action["outputs"]]

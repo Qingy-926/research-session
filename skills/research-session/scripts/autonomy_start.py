@@ -15,6 +15,13 @@ RESOURCES = ("seconds", "model_calls", "gpu_seconds", "disk_bytes", "cost_minor"
 ACTION_KINDS = {"inspect", "recompute", "candidate_patch", "test", "draft", "approved_task"}
 
 
+def file_sha256(stream):
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -91,7 +98,7 @@ def inspect_card_v1(card, now):
         if path in bound or not re.fullmatch("[0-9a-f]{64}", str(item["sha256"])):
             raise ValueError("duplicate context or invalid context SHA")
         with path.open("rb") as stream:
-            actual_sha = hashlib.file_digest(stream, "sha256").hexdigest()
+            actual_sha = file_sha256(stream)
         if actual_sha != item["sha256"]:
             raise ValueError("context drift: " + str(path))
         bound.add(path)
@@ -224,7 +231,7 @@ def inspect_card_v2(card, now, *, existing_state=None):
         if path in bound or not re.fullmatch(r"[0-9a-f]{64}", str(item["sha256"])):
             raise ValueError("duplicate context or invalid context SHA")
         with path.open("rb") as stream:
-            if hashlib.file_digest(stream, "sha256").hexdigest() != item["sha256"]:
+            if file_sha256(stream) != item["sha256"]:
                 raise ValueError("context drift: " + str(path))
         bound[path] = item["sha256"]
     if (root / "README.md").resolve() not in bound:

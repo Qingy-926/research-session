@@ -101,7 +101,7 @@ def timestamp(value, label):
     if not isinstance(value, str) or not value.strip():
         raise GuardError(label + " must be an absolute timestamp")
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value.replace("Z", "+00:00")))
     except ValueError as exc:
         raise GuardError(label + " must be an ISO-8601 timestamp") from exc
     if parsed.tzinfo is None:

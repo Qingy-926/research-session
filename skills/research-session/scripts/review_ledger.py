@@ -1231,7 +1231,7 @@ def _normal_release_valid(lock: dict[str, Any], group: list[dict[str, Any]]) -> 
 
 
 def _aware_epoch(value: str) -> float:
-    moment = datetime.datetime.fromisoformat(value)
+    moment = datetime.datetime.fromisoformat(re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", value))
     if moment.tzinfo is None:
         raise ValueError("recovery timestamps require a timezone")
     return moment.timestamp()
@@ -1729,7 +1729,7 @@ def _fixture_correction_valid(target: dict[str, Any], correction: dict[str, Any]
             return False
         if review["reviewer"].strip().casefold() == review["operator"].strip().casefold():
             return False
-        moment = datetime.datetime.fromisoformat(review["reviewed_at"])
+        moment = datetime.datetime.fromisoformat(re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", review["reviewed_at"]))
         if moment.tzinfo is None:
             return False
         evidence = review.get("evidence")
