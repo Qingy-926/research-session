@@ -11,6 +11,13 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.4.3] - 2026-11-23
+
+### Fixed
+
+- Compare verification start times and file modification times at the recorded
+  microsecond precision to avoid rejecting freshly verified inputs on Windows.
+
 ## [6.4.2] - 2026-11-23
 
 - Supersede the local-only 6.4.1 candidate before tagging, because the same version had

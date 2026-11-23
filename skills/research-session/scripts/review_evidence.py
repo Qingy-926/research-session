@@ -173,13 +173,16 @@ def validate_verification(path, files):
     started, finished = timestamp(value.get("started_at")), timestamp(value.get("finished_at"))
     if finished < started or finished > datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=1):
         raise ValueError("invalid verification time interval")
+    # The serialized start time has microsecond precision, unlike file mtimes.
+    since_epoch = started - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    started_us = (since_epoch.days * 86400 + since_epoch.seconds) * 1_000_000 + since_epoch.microseconds
     if not isinstance(value.get("inputs"), list) or not value["inputs"]:
         raise ValueError("verification.inputs cannot be empty")
     for row in value["inputs"]:
         if not isinstance(row, dict) or row.get("after_sha256") != row.get("sha256"):
             raise ValueError("verification inputs changed during the run")
         bound_file(row["path"], files, row["sha256"])
-        if Path(row["path"]).stat().st_mtime_ns > int(started.timestamp() * 1e9):
+        if Path(row["path"]).stat().st_mtime_ns // 1000 > started_us:
             raise ValueError("verification is older than a current input modification")
     if not isinstance(value.get("artifacts"), list) or not value["artifacts"]:
         raise ValueError("verification.artifacts cannot be empty")

@@ -95,6 +95,22 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(data["verifications"][0]["exit_code"], 0)
         self.assertEqual(data["verifications"][0]["pytest_summary"], {"passed": 184})
 
+    def test_input_mtime_uses_verification_timestamp_precision(self):
+        record = self.record()
+        value = json.loads(record.read_bytes())
+        value["started_at"] = "2024-01-01T00:00:00.000002+00:00"
+        record.write_text(json.dumps(value), encoding="utf-8")
+        for offset in (0, 900, 1000):
+            with self.subTest(offset_ns=offset):
+                mtime_ns = 1_704_067_200_000_002_000 + offset
+                os.utime(self.source, ns=(mtime_ns, mtime_ns))
+                self.assertEqual(self.source.stat().st_mtime_ns, mtime_ns)
+                if offset < 1000:
+                    self.lint("Full suite: 184 passed", verifications=[str(record)])
+                else:
+                    with self.assertRaisesRegex(ValueError, "older than a current input modification"):
+                        self.lint("Full suite: 184 passed", verifications=[str(record)])
+
     def test_positive_summary_cannot_hide_failed_log(self):
         record = self.record(1, "1 failed, 183 passed in 0.01s")
         with self.assertRaises(ValueError):
