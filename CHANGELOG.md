@@ -11,6 +11,14 @@ published yet; the entries below describe the source tree only.
 
 - Online CI execution, clean-host UI loading, and explicitly authorized live-provider checks.
 
+## [6.4.2] - 2026-11-23
+
+- Supersede the local-only 6.4.1 candidate before tagging, because the same version had
+  already been materialized with different bytes in the host cache. This release contains
+  the 6.4.1 fixes plus the Windows/POSIX digest canonicalization and Python 3.10 runtime
+  compatibility corrections. Review contracts, receipts, scientific gates, send locks,
+  patch continuity and cumulative budgets are unchanged.
+
 ## [6.4.1] - 2026-11-23
 
 ### Fixed

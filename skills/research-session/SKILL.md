@@ -5,7 +5,7 @@ description: Use when continuing a research project, designing or preregistering
 
 # 科研任务入口
 
-版本 v6.4.1（2026-11-23）：本地整改发布前绑定、CI 解析修复与规则绑定收窄；复核合同、科研门和累积预算不变。
+版本 v6.4.2（2026-11-23）：本地整改发布前绑定、CI 聚合门、规则绑定收窄与 Windows/Linux/Python 3.10 兼容修复；复核合同、科研门和累积预算不变。
 
 ## §0 职责
 
